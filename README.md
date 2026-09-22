@@ -1,5 +1,7 @@
 # Phundamental.jl
 
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://alt-f4-dev.github.io/Phundamental.jl/stable/)
+
 `Phundamental.jl` is a representation-aware framework for constructing, transforming, solving, and analyzing quantum many-body models in Julia. Its central design goal is to keep the **physical model**, **mathematical representation**, **numerical approximation**, **solver backend**, **observable definition**, and **experimental response** conceptually separate.
 
 The framework is intended to support calculations ranging from exact small-cluster benchmarks to thermally sampled clusters and specialized large-lattice mode calculations, while preserving enough symbolic information to validate transformations and compare different representations of the same physics.

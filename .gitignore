@@ -1,0 +1,14 @@
+#Julia manifest files
+/Manifest.toml
+/docs/Manifest.toml
+
+#documenter output
+/docs/build
+
+#general julia artifacts
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+
+#OS/editor artifacts
+.DS_Store

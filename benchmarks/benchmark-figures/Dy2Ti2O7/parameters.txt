@@ -1,0 +1,45 @@
+Morris et al. Dy2Ti2O7 reproduction
+DOI = 10.1126/science.1178868
+
+ARTICLE/SUPPLEMENT
+mu_Dy/muB = 10.0
+Q_monopole_J_per_T_m = 4.28e-13
+Delta_monopole_K = 4.35
+string_length = 50
+Fig3C_bias = 0.53:0.47
+Fig4_mid_bias = 0.64:0.36
+Fig4_high_bias = 0.8:0.19999999999999996
+
+MICROSCOPIC PARAMETERIZATION REFERENCED THROUGH S9/S10
+J_K = -3.72
+D_K = 1.41
+J_nn_K = -1.24
+D_nn_K = 2.35
+J_eff_microscopic_K = 1.11
+J_eff_Fig1_single_tetrahedron_K = 1.45
+E_nn_monopole_K = 3.061614211748219
+
+CONSISTENCY CHECKS
+Delta_from_J_D_K = 4.350027144288248
+D_from_mu_and_geometry_K = 1.4061361140068365
+a_diamond_A = 4.333649569299065
+a_cubic_A = 10.008134981633287
+r_nn_A = 3.5384100562716005
+
+PHUNDAMENTAL EWALD
+cutoff_change = 4.212898756560309e-9
+cutoff_converged = true
+diagonal_cartesian_symmetry_error = 0.0
+pair_symmetry_error = 0.0
+passed = true
+
+NOT REPRODUCED
+- experimental neutron panels: original 3D data not contained in PDFs
+- experimental magnetization curves: raw sweeps not contained in PDFs
+- experimental heat-capacity points: raw table not contained in PDFs
+- COMSOL demagnetization field map: external FEM calculation
+- Fig. 4D inter-string correlation enhancement: independent-walk model only
+
+FUTURE CORE NUMERICS
+- particle-mesh Ewald / P3M remains future work
+- parallel tempering / replica exchange remains future work

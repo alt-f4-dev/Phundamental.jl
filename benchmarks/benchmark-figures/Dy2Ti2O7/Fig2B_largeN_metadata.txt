@@ -1,0 +1,13 @@
+temperature_K = 0.7
+lambda = 3.7274673785140067
+J_eff_K = 1.11
+BZ_quadrature_n = 12
+Dy_form_factor = true
+planes = HK0, HK1, 0KL
+H_range = -5:5
+HK1_H_range = -5:0
+HK0_H_range = 0:5
+K_range = 0:5
+L_range = 0:1
+display_colormap = turbo
+display_upper_quantile = 0.99

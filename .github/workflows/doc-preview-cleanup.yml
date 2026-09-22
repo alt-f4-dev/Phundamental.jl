@@ -1,0 +1,34 @@
+name: Documentation Preview Cleanup
+
+on:
+  pull_request:
+    types:
+      - closed
+
+concurrency:
+  group: documentation-preview-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v7
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+      - name: Remove pull-request preview
+        env:
+          PREVIEW_DIR: previews/PR${{ github.event.number }}
+        run: |
+          if [ -d "${PREVIEW_DIR}" ]; then
+              git config user.name "Documenter.jl"
+              git config user.email "documenter@juliadocs.github.io"
+              git rm -rf "${PREVIEW_DIR}"
+              git commit -m "Remove documentation preview for PR #${{ github.event.number }}"
+              git branch gh-pages-clean "$(echo "Compact gh-pages history" | git commit-tree "HEAD^{tree}")"
+              git push --force origin gh-pages-clean:gh-pages
+          fi

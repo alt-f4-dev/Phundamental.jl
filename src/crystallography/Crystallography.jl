@@ -6,6 +6,7 @@ using ..Algebra
 
 include("SymmetryTypes.jl")
 include("SpglibBackend.jl")
+include("OrbitExpansion.jl")
 include("SymmetryActions.jl")
 include("InvariantGeneration.jl")
 
@@ -13,6 +14,9 @@ export CrystalStructure,
        SpaceGroupOperation,
        CrystallographicDataset,
        CrystallographyOptions,
+       SymmetryOrbit,
+       space_group_operations,
+       expand_symmetry_orbit,
        wrap_fractional,
        fractional_displacement,
        cartesian_rotation,

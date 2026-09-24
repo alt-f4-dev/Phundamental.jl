@@ -558,11 +558,13 @@ module Models
 
 using LinearAlgebra
 using ..PhundamentalCore
+using ..Crystallography: SpaceGroupOperation, space_group_operations, expand_symmetry_orbit
 
 # Geometry
 include("models/Geometry/Lattices.jl")
 include("models/Geometry/CrystalStructures.jl")
 include("models/Geometry/MixedCrystalStructures.jl")
+include("models/Geometry/CrystalBasisExpansion.jl")
 include("models/Geometry/LocalFrames.jl")
 include("models/Geometry/ReciprocalSpace.jl")
 include("models/Geometry/NeighborLists.jl")
@@ -602,6 +604,7 @@ export BravaisLattice,
        MixedBasisSite,
        CrystalStructure,
        MixedCrystalStructure,
+       expand_crystal_basis,
        occupancy,
        CrystalSite,
        Supercell,
@@ -1043,6 +1046,7 @@ using .Models: BravaisLattice,
                MixedOccupancy,
                MixedBasisSite,
                MixedCrystalStructure,
+               expand_crystal_basis,
                occupancy,
                CrystalSite,
                nsites,
@@ -1691,6 +1695,7 @@ export BravaisLattice,
        MixedBasisSite,
        LatticeCrystalStructure,
        MixedCrystalStructure,
+       expand_crystal_basis,
        occupancy,
        CrystalSite,
        nsites,

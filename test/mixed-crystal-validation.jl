@@ -82,3 +82,55 @@ const F = Phundamental
         @test first_species == second_species
     end
 end
+
+@testset "Crystal basis expansion hierarchy" begin
+    irreps = (
+        LaBa=[0.0053, 0.0053, 0.36059],
+        Cu=[0.0, 0.0, 0.0],
+        O1=[0.25, 0.25, 0.0074],
+        O1p=[0.75, 0.25, 0.0],
+        O2=[-0.0163, -0.0163, 0.1821],
+    )
+    mixed_occ = F.MixedOccupancy(:La => 0.9375, :Ba => 0.0625)
+    occs = (LaBa=mixed_occ, Cu=:Cu, O1=:O, O1p=:O, O2=:O)
+    site_props = (
+        LaBa=(orbit=:LaBa,),
+        Cu=(orbit=:Cu,),
+        O1=(orbit=:O1,),
+        O1p=(orbit=:O1p,),
+        O2=(orbit=:O2,),
+    )
+
+    operations = F.space_group_operations(138; choice=2)
+    mid_basis = F.expand_crystal_basis(operations, irreps, occs, site_props)
+    high_basis = F.expand_crystal_basis(138, irreps, occs, site_props; choice=2)
+
+    @test length(mid_basis) == 28
+    @test length(high_basis) == 28
+    @test [site.label for site in mid_basis] == [site.label for site in high_basis]
+    @test [site.fractional for site in mid_basis] == [site.fractional for site in high_basis]
+    @test count(site -> site isa F.MixedBasisSite, high_basis) == 8
+    @test count(site -> site isa F.BasisSite && site.species === :Cu, high_basis) == 4
+    @test count(site -> site isa F.BasisSite && site.species === :O, high_basis) == 16
+    @test all(site -> site.properties.orbit === :LaBa, high_basis[1:8])
+
+    no_properties = F.expand_crystal_basis(138, irreps, occs; choice=2)
+    @test all(site -> site.properties == NamedTuple(), no_properties)
+
+    partial_properties = (LaBa=(orbit=:LaBa,),)
+    partial_basis = F.expand_crystal_basis(138, irreps, occs, partial_properties; choice=2)
+    @test all(site -> site.properties == (orbit=:LaBa,), partial_basis[1:8])
+    @test all(site -> site.properties == NamedTuple(), partial_basis[9:end])
+
+    irreps_dict = Dict{Symbol,Any}(pairs(irreps))
+    occs_dict = Dict{Symbol,Any}(pairs(occs))
+    props_dict = Dict{Symbol,Any}(pairs(site_props))
+    dict_basis = F.expand_crystal_basis(138, irreps_dict, occs_dict, props_dict; choice=2)
+
+    @test length(dict_basis) == 28
+    @test Set(site.label for site in dict_basis) == Set(site.label for site in high_basis)
+
+    bad_occs = (LaBa=mixed_occ, Cu=:Cu)
+    @test_throws ArgumentError F.expand_crystal_basis(138, irreps, bad_occs; choice=2)
+    @test_throws ArgumentError F.expand_crystal_basis(138, irreps, occs, (Ghost=(x=1,),); choice=2)
+end

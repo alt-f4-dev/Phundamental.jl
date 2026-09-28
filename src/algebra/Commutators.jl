@@ -82,12 +82,7 @@ end
 Return a directly known primitive commutator, or `nothing` when no dedicated
 primitive rule is defined.  A returned zero is represented as `0*I`.
 """
-primitive_commutator(
-    ::AbstractOperatorAlgebra,
-    ::AbstractOperatorExpr,
-    ::AbstractOperatorExpr;
-    hbar::Number = 1,
-) = nothing
+primitive_commutator(::AbstractOperatorAlgebra, ::AbstractOperatorExpr, ::AbstractOperatorExpr; hbar::Number = 1) = nothing
 
 # Bosonic CCR.
 function primitive_commutator(
@@ -203,12 +198,7 @@ end
 Return a directly known primitive anticommutator, or `nothing` when no
 primitive relation is defined.
 """
-primitive_anticommutator(
-    ::AbstractOperatorAlgebra,
-    ::AbstractOperatorExpr,
-    ::AbstractOperatorExpr;
-    hbar::Number = 1,
-) = nothing
+primitive_anticommutator(::AbstractOperatorAlgebra, ::AbstractOperatorExpr, ::AbstractOperatorExpr; hbar::Number = 1) = nothing
 
 # Fermionic CAR.
 function primitive_anticommutator(

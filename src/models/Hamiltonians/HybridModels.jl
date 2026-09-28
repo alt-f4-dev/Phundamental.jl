@@ -1,5 +1,11 @@
 # Standard local electron-phonon and spin-boson hybrid models.
 
+"""
+    HolsteinModel(t, U, omega, g; phonon_cutoff, shell=n, chemical_potential=0, hbar=1)
+    HolsteinModel(t, U, omega, g; phonon_cutoff, neighbor_cutoff=r, max_shell=nothing, chemical_potential=0, hbar=1)
+
+Specify a local Holstein electron-phonon model. `shell=n` selects exactly the geometric shell used by the electronic hopping term; local Hubbard, phonon, and electron-phonon terms are unaffected. The `neighbor_cutoff`/`max_shell` form remains available for explicit range control.
+"""
 struct HolsteinModel{T,U,M,W,G} <: AbstractHamiltonianSpec
     t::T
     U::U
@@ -7,7 +13,7 @@ struct HolsteinModel{T,U,M,W,G} <: AbstractHamiltonianSpec
     omega::W
     g::G
     phonon_cutoff::Union{Int,Vector{Int}}
-    neighbor_cutoff::Float64
+    neighbor_cutoff::Union{Nothing,Float64}
     max_shell::Union{Nothing,Int}
     hbar::Float64
 end
@@ -19,8 +25,9 @@ function HolsteinModel(
     g;
     chemical_potential=0.0,
     phonon_cutoff,
-    neighbor_cutoff::Real,
+    neighbor_cutoff::Union{Nothing,Real}=nothing,
     max_shell::Union{Nothing,Integer}=nothing,
+    shell::Union{Nothing,Integer}=nothing,
     hbar::Real=1.0,
 )
     hbar > 0 || throw(ArgumentError("hbar must be positive"))
@@ -30,12 +37,16 @@ function HolsteinModel(
     else
         all(>=(0), cut) || throw(ArgumentError("phonon cutoffs must be nonnegative"))
     end
-    return HolsteinModel(
-        t, U, chemical_potential, omega, g, cut,
-        Float64(neighbor_cutoff), isnothing(max_shell) ? nothing : Int(max_shell), Float64(hbar),
-    )
+    cutoff, selected_shell = _normalize_bond_selection(neighbor_cutoff=neighbor_cutoff, max_shell=max_shell, shell=shell)
+    return HolsteinModel(t, U, chemical_potential, omega, g, cut, cutoff, selected_shell, Float64(hbar))
 end
 
+"""
+    LongitudinalSpinBosonModel(Jxy, Jz, omega, g; phonon_cutoff, shell=n, field_z=0, hbar=1)
+    LongitudinalSpinBosonModel(Jxy, Jz, omega, g; phonon_cutoff, neighbor_cutoff=r, max_shell=nothing, field_z=0, hbar=1)
+
+Specify a longitudinal spin-boson model. `shell=n` selects exactly the geometric shell used by the spin-exchange terms; local boson and spin-boson terms are unaffected. The `neighbor_cutoff`/`max_shell` form remains available for explicit range control.
+"""
 struct LongitudinalSpinBosonModel{JXY,JZ,W,G,F} <: AbstractHamiltonianSpec
     Jxy::JXY
     Jz::JZ
@@ -43,7 +54,7 @@ struct LongitudinalSpinBosonModel{JXY,JZ,W,G,F} <: AbstractHamiltonianSpec
     g::G
     field_z::F
     phonon_cutoff::Union{Int,Vector{Int}}
-    neighbor_cutoff::Float64
+    neighbor_cutoff::Union{Nothing,Float64}
     max_shell::Union{Nothing,Int}
     hbar::Float64
 end
@@ -55,8 +66,9 @@ function LongitudinalSpinBosonModel(
     g;
     field_z=0.0,
     phonon_cutoff,
-    neighbor_cutoff::Real,
+    neighbor_cutoff::Union{Nothing,Real}=nothing,
     max_shell::Union{Nothing,Integer}=nothing,
+    shell::Union{Nothing,Integer}=nothing,
     hbar::Real=1.0,
 )
     hbar > 0 || throw(ArgumentError("hbar must be positive"))
@@ -66,11 +78,16 @@ function LongitudinalSpinBosonModel(
     else
         all(>=(0), cut) || throw(ArgumentError("phonon cutoffs must be nonnegative"))
     end
-    return LongitudinalSpinBosonModel(
-        Jxy, Jz, omega, g, field_z, cut,
-        Float64(neighbor_cutoff), isnothing(max_shell) ? nothing : Int(max_shell), Float64(hbar),
-    )
+    cutoff, selected_shell = _normalize_bond_selection(neighbor_cutoff=neighbor_cutoff, max_shell=max_shell, shell=shell)
+    return LongitudinalSpinBosonModel(Jxy, Jz, omega, g, field_z, cut, cutoff, selected_shell, Float64(hbar))
 end
+
+"""
+    LongitudinalXXZPhononModel
+
+Public alias for `LongitudinalSpinBosonModel`. The alias emphasizes that the model consists of XXZ spin exchange coupled longitudinally through `Sᶻ` to local phonon modes. Both names construct the same concrete type and preserve identical Hamiltonian, solver, metadata, and provenance behavior.
+"""
+const LongitudinalXXZPhononModel = LongitudinalSpinBosonModel
 
 function _site_series(value, cluster::Supercell)
     N = nsites(cluster)

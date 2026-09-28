@@ -42,12 +42,7 @@ _operator_index(op::Union{PositionOperator,MomentumOperator}) = op.mode
 # ---------------------------------------------------------------------------
 
 """Return an exact replacement for `A*B`, or `nothing` if no rewrite is needed."""
-_rewrite_pair(
-    ::AbstractOperatorAlgebra,
-    ::AbstractOperatorExpr,
-    ::AbstractOperatorExpr;
-    hbar::Number = 1,
-) = nothing
+_rewrite_pair(::AbstractOperatorAlgebra, ::AbstractOperatorExpr, ::AbstractOperatorExpr; hbar::Number = 1) = nothing
 
 # Identity factors.
 _rewrite_pair(::AbstractOperatorAlgebra, ::IdentityOperator, B::AbstractOperatorExpr; hbar::Number=1) = B
@@ -63,24 +58,24 @@ function _rewrite_pair(
     A isa NumberOperator && A.kind != :boson && return nothing
     B isa NumberOperator && B.kind != :boson && return nothing
 
-    # b_i^† b_i = n_i.
+    # bᵢ† bᵢ = nᵢ.
     if A isa BosonCreate && B isa BosonAnnihilate && A.mode == B.mode
         return nb(A.mode)
     end
 
-    # b_i b_j^† = b_j^† b_i + delta_ij.
+    # bᵢ bⱼ† = bⱼ† bᵢ + δᵢⱼ.
     if A isa BosonAnnihilate && B isa BosonCreate
         ordered = B * A
         return A.mode == B.mode ? IdentityOperator() + ordered : ordered
     end
 
-    # [n_i,b_j^†] = delta_ij b_j^†.
+    # [nᵢ,bⱼ†] = δᵢⱼ bⱼ†.
     if A isa NumberOperator && B isa BosonCreate
         ordered = B * A
         return A.mode == B.mode ? ordered + B : ordered
     end
 
-    # b_i n_j = n_j b_i + delta_ij b_i.
+    # bᵢ nⱼ = nⱼ bᵢ + δᵢⱼ bᵢ.
     if A isa BosonAnnihilate && B isa NumberOperator
         ordered = B * A
         return A.mode == B.mode ? ordered + A : ordered
@@ -121,24 +116,24 @@ function _rewrite_pair(
         return A
     end
 
-    # c_i^† c_i = n_i.
+    # cᵢ† cᵢ = nᵢ.
     if A isa FermionCreate && B isa FermionAnnihilate && A.mode == B.mode
         return nf(A.mode)
     end
 
-    # c_i c_j^† = delta_ij - c_j^† c_i.
+    # cᵢ cⱼ† = δᵢⱼ - cⱼ† cᵢ.
     if A isa FermionAnnihilate && B isa FermionCreate
         ordered = -(B * A)
         return A.mode == B.mode ? IdentityOperator() + ordered : ordered
     end
 
-    # Number operators are even: [n_i,c_j^†] = delta_ij c_j^†.
+    # Number operators are even: [nᵢ,cⱼ†] = δᵢⱼ cⱼ†.
     if A isa NumberOperator && B isa FermionCreate
         ordered = B * A
         return A.mode == B.mode ? ordered + B : ordered
     end
 
-    # c_i n_j = n_j c_i + delta_ij c_i.
+    # cᵢ nⱼ = nⱼ cᵢ + δᵢⱼ cᵢ.
     if A isa FermionAnnihilate && B isa NumberOperator
         ordered = B * A
         return A.mode == B.mode ? ordered + A : ordered
@@ -167,33 +162,27 @@ function _rewrite_nonlocal_fermion_product(
 )
     for mode in 1:algebra.nmodes
         create_index = findfirst(factor -> factor isa FermionCreate && factor.mode == mode, factors)
-        number_index = findfirst(
-            factor -> factor isa NumberOperator && factor.kind == :fermion && factor.mode == mode,
-            factors,
-        )
+        number_index = findfirst(factor -> factor isa NumberOperator && factor.kind == :fermion && factor.mode == mode, factors)
         annihilate_index = findfirst(factor -> factor isa FermionAnnihilate && factor.mode == mode, factors)
 
-        # In canonical creation < number ordering, c_i^† ... n_i = 0 because
-        # n_i commutes with all intervening different-mode operators.
+        # In canonical creation < number ordering, cᵢ† ... nᵢ = 0 because
+        # nᵢ commutes with all intervening different-mode operators.
         if create_index !== nothing && number_index !== nothing
             return _zero_operator()
         end
 
-        # In canonical number < annihilation ordering, n_i ... c_i = 0.
+        # In canonical number < annihilation ordering, nᵢ ... cᵢ = 0.
         if number_index !== nothing && annihilate_index !== nothing
             return _zero_operator()
         end
 
-        # Reduce a non-adjacent c_i^† ... c_i pair to n_i. Moving c_i across
+        # Reduce a non-adjacent cᵢ† ... cᵢ pair to nᵢ. Moving cᵢ across
         # every intervening odd fermionic generator contributes one minus sign;
         # number operators are even and therefore contribute no sign.
         if create_index !== nothing && annihilate_index !== nothing
             create_index < annihilate_index || continue
 
-            crossings = count(
-                factor -> factor isa FermionCreate || factor isa FermionAnnihilate,
-                factors[create_index+1:annihilate_index-1],
-            )
+            crossings = count(factor -> factor isa FermionCreate || factor isa FermionAnnihilate, factors[create_index+1:annihilate_index-1])
 
             reduced = AbstractOperatorExpr[]
             sizehint!(reduced, length(factors) - 1)
@@ -316,11 +305,7 @@ Apply at most one local algebra rewrite to `expr`, recursing into sums,
 products, and scaled expressions.  Repeated application is managed by
 `canonicalize`.
 """
-rewrite_once(
-    ::AbstractOperatorAlgebra,
-    expr::AbstractPrimitiveOperator;
-    hbar::Number = 1,
-) = expr
+rewrite_once(::AbstractOperatorAlgebra, expr::AbstractPrimitiveOperator; hbar::Number = 1) = expr
 
 function rewrite_once(
     algebra::AbstractOperatorAlgebra,
@@ -336,9 +321,7 @@ function rewrite_once(
     expr::OperatorSum;
     hbar::Number = 1,
 )
-    return OperatorSum(AbstractOperatorExpr[
-        rewrite_once(algebra, term; hbar=hbar) for term in expr.terms
-    ])
+    return OperatorSum(AbstractOperatorExpr[rewrite_once(algebra, term; hbar=hbar) for term in expr.terms])
 end
 
 function rewrite_once(

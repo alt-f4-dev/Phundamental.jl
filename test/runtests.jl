@@ -2,6 +2,8 @@ using Phundamental
 
 include("generalized-api-validation.jl")
 include("high-level-forward-api-validation.jl")
+include("electronic-forward-api-validation.jl")
+include("bond-selection-api-validation.jl")
 include("mixed-crystal-validation.jl")
 include("transformation-representation-validation.jl")
 include("greens/finite-temperature-green-validation.jl")

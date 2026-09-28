@@ -1,10 +1,7 @@
 # Observable-level validation and sum-rule diagnostics.
 
 """
-Compare two scalar or tensor spectra generated through different exact
-representation paths.  This is the observable-level form of representation
-invariance: transformed Hamiltonians and transformed observables must produce
-the same physical spectrum up to numerical tolerance.
+Compare two scalar or tensor spectra generated through different exact representation paths. This is the observable-level form of representation invariance: transformed Hamiltonians and transformed observables must produce the same physical spectrum up to numerical tolerance.
 """
 function validate_observable_equivalence(
     A::Union{SpectrumResult,TensorSpectrumResult,ScatteringResult},
@@ -20,6 +17,14 @@ function validate_observable_equivalence(
     return isapprox(A.intensity, B.intensity; atol=atol, rtol=rtol)
 end
 
+function validate_observable_equivalence(A::LocalSpectrumResult, B::LocalSpectrumResult; atol::Real=1e-10, rtol::Real=1e-8)
+    A.sites == B.sites || return false
+    length(A.axis) == length(B.axis) || return false
+    all(isapprox(a, b; atol=atol, rtol=rtol) for (a, b) in zip(A.axis, B.axis)) || return false
+    size(A.intensity) == size(B.intensity) || return false
+    return isapprox(A.intensity, B.intensity; atol=atol, rtol=rtol)
+end
+
 """Trapezoidal integral along the spectral axis for each q value."""
 function integrated_spectral_weight(spectrum::SpectrumResult)
     x = spectrum.axis
@@ -28,9 +33,24 @@ function integrated_spectral_weight(spectrum::SpectrumResult)
     for iq in axes(y, 1)
         total = 0.0 + 0im
         @inbounds for j in 1:length(x)-1
-            total += 0.5 * (y[iq, j] + y[iq, j+1]) * (x[j+1] - x[j])
+            total += 0.5 * (y[iq, j] + y[iq, j + 1]) * (x[j + 1] - x[j])
         end
         out[iq] = total
+    end
+    return out
+end
+
+"""Trapezoidal integral along the spectral axis for each selected local site."""
+function integrated_spectral_weight(spectrum::LocalSpectrumResult)
+    x = spectrum.axis
+    y = spectrum.intensity
+    out = zeros(ComplexF64, size(y, 1))
+    for site_index in axes(y, 1)
+        total = 0.0 + 0im
+        @inbounds for j in 1:length(x)-1
+            total += 0.5 * (y[site_index, j] + y[site_index, j + 1]) * (x[j + 1] - x[j])
+        end
+        out[site_index] = total
     end
     return out
 end
@@ -43,11 +63,9 @@ function integrated_spectral_weight(spectrum::TensorSpectrumResult)
 
     for iq in axes(y, 1), α in 1:3, β in 1:3
         total = 0.0 + 0im
-
         @inbounds for j in 1:length(x)-1
             total += 0.5 * (y[iq, j, α, β] + y[iq, j + 1, α, β]) * (x[j + 1] - x[j])
         end
-
         out[iq, α, β] = total
     end
 

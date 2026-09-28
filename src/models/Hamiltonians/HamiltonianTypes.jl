@@ -59,6 +59,28 @@ function _validate_material_cluster(material::Material, cluster::Supercell)
     return true
 end
 
+"""
+    _normalize_bond_selection(; neighbor_cutoff=nothing, max_shell=nothing, shell=nothing)
+
+Normalize the two supported geometric bond-selection modes. `shell=n` selects exactly one geometric shell, while `neighbor_cutoff=r` optionally combined with `max_shell=n` retains explicit distance/range control. The two modes are mutually exclusive.
+"""
+function _normalize_bond_selection(
+    ; neighbor_cutoff::Union{Nothing,Real}=nothing,
+      max_shell::Union{Nothing,Integer}=nothing,
+      shell::Union{Nothing,Integer}=nothing,
+)
+    !isnothing(max_shell) && max_shell < 1 && throw(ArgumentError("max_shell must be positive"))
+    !isnothing(shell) && shell < 1 && throw(ArgumentError("shell must be positive"))
+    !isnothing(neighbor_cutoff) && neighbor_cutoff <= 0 && throw(ArgumentError("neighbor_cutoff must be positive"))
+    !isnothing(shell) && !isnothing(neighbor_cutoff) && throw(ArgumentError("specify either shell or neighbor_cutoff, not both"))
+    !isnothing(shell) && !isnothing(max_shell) && throw(ArgumentError("shell and max_shell are alternative bond-selection modes"))
+    isnothing(shell) && isnothing(neighbor_cutoff) && throw(ArgumentError("supply either shell or neighbor_cutoff"))
+
+    cutoff = isnothing(neighbor_cutoff) ? nothing : Float64(neighbor_cutoff)
+    selected_shell = isnothing(shell) ? (isnothing(max_shell) ? nothing : Int(max_shell)) : Int(shell)
+    return cutoff, selected_shell
+end
+
 function _default_bonds(cluster::Supercell, cutoff::Real, max_shell)
     return neighbor_bonds(cluster; cutoff=cutoff, max_shell=max_shell)
 end

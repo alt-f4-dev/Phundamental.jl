@@ -3,10 +3,7 @@
 """
     MagneticNeutronProbe(material, cluster; site=1, prefactor=1)
 
-Construct a magnetic-neutron probe from the magnetic form factor and g tensor
-stored for one material site. This is a convenience constructor for the
-existing low-level `MagneticNeutronProbe(; form_factor, g_tensor, prefactor)`
-API; it does not change the scattering normalization convention.
+Construct a magnetic-neutron probe from the magnetic form factor and g tensor stored for one material site. This is a convenience constructor for the existing low-level `MagneticNeutronProbe(; form_factor, g_tensor, prefactor)` API; it does not change the scattering normalization convention.
 """
 function Observables.MagneticNeutronProbe(
     material::Models.Material,
@@ -24,3 +21,16 @@ function Observables.MagneticNeutronProbe(
         prefactor=prefactor,
     )
 end
+
+# These aliases keep the new electronic forward-result/request types available from `using Phundamental` without changing the large top-level module file.
+const LocalSpectrumResult = Observables.LocalSpectrumResult
+const LocalElectronSpectralFunctionRequest = Observables.LocalElectronSpectralFunctionRequest
+
+@eval Observables export LocalSpectrumResult, LocalElectronSpectralFunctionRequest
+export LocalSpectrumResult, LocalElectronSpectralFunctionRequest
+
+# Public alias emphasizing the XXZ-plus-local-phonon interpretation without changing the canonical implementation.
+const LongitudinalXXZPhononModel = Models.LongitudinalXXZPhononModel
+
+@eval Models export LongitudinalXXZPhononModel
+export LongitudinalXXZPhononModel

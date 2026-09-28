@@ -8,8 +8,7 @@
 # Structural helpers
 # ---------------------------------------------------------------------------
 
-_iszeroexpr(expr::AbstractOperatorExpr) =
-    expr isa ScaledOperator && iszero(expr.coefficient)
+_iszeroexpr(expr::AbstractOperatorExpr) = expr isa ScaledOperator && iszero(expr.coefficient)
 
 function _expr_equal(A::AbstractOperatorExpr, B::AbstractOperatorExpr)
     typeof(A) === typeof(B) || return false
@@ -55,9 +54,7 @@ function _scale(coefficient::Number, expr::AbstractOperatorExpr)
     if expr isa ScaledOperator
         return _scale(coefficient * expr.coefficient, expr.operator)
     elseif expr isa OperatorSum
-        return OperatorSum(AbstractOperatorExpr[
-            _scale(coefficient, term) for term in expr.terms
-        ])
+        return OperatorSum(AbstractOperatorExpr[_scale(coefficient, term) for term in expr.terms])
     end
 
     return ScaledOperator(coefficient, expr)
@@ -209,9 +206,7 @@ function canonicalize(
         current = next
     end
 
-    throw(ErrorException(
-        "canonicalization did not converge after $(max_iterations) iterations"
-    ))
+    throw(ErrorException("canonicalization did not converge after $(max_iterations) iterations"))
 end
 
 """
@@ -219,8 +214,4 @@ end
 
 Alias for `canonicalize` emphasizing the operator-ordering use case.
 """
-normal_order(
-    algebra::AbstractOperatorAlgebra,
-    expr::AbstractOperatorExpr;
-    kwargs...,
-) = canonicalize(algebra, expr; kwargs...)
+normal_order(algebra::AbstractOperatorAlgebra, expr::AbstractOperatorExpr; kwargs...) = canonicalize(algebra, expr; kwargs...)

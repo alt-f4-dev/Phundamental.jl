@@ -22,6 +22,7 @@ include("Fermion/BitFockBasis.jl")
 include("Fermion/FermionKernels.jl")
 include("Fermion/FermionLanczos.jl")
 include("Fermion/FermionGreenFunctions.jl")
+include("Fermion/FermionGreenWorkspaceReuse.jl")
 
 include("Boson/PackedBosonBasis.jl")
 include("Boson/BosonKernels.jl")

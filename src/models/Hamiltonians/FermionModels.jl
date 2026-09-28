@@ -1,10 +1,16 @@
 # Standard spinful single-band Hubbard Hamiltonian.
 
+"""
+    HubbardModel(t, U; shell=n, chemical_potential=0, hbar=1)
+    HubbardModel(t, U; neighbor_cutoff=r, max_shell=nothing, chemical_potential=0, hbar=1)
+
+Specify a spinful single-band Hubbard model. `shell=n` selects exactly geometric neighbor shell `n` without requiring a floating-point cutoff. The existing `neighbor_cutoff`/`max_shell` form remains available for explicit range control.
+"""
 struct HubbardModel{T,U,M} <: AbstractHamiltonianSpec
     t::T
     U::U
     chemical_potential::M
-    neighbor_cutoff::Float64
+    neighbor_cutoff::Union{Nothing,Float64}
     max_shell::Union{Nothing,Int}
     hbar::Float64
 end
@@ -13,15 +19,14 @@ function HubbardModel(
     t,
     U;
     chemical_potential=0.0,
-    neighbor_cutoff::Real,
+    neighbor_cutoff::Union{Nothing,Real}=nothing,
     max_shell::Union{Nothing,Integer}=nothing,
+    shell::Union{Nothing,Integer}=nothing,
     hbar::Real=1.0,
 )
     hbar > 0 || throw(ArgumentError("hbar must be positive"))
-    return HubbardModel(
-        t, U, chemical_potential, Float64(neighbor_cutoff),
-        isnothing(max_shell) ? nothing : Int(max_shell), Float64(hbar),
-    )
+    cutoff, selected_shell = _normalize_bond_selection(neighbor_cutoff=neighbor_cutoff, max_shell=max_shell, shell=shell)
+    return HubbardModel(t, U, chemical_potential, cutoff, selected_shell, Float64(hbar))
 end
 
 function build_model(

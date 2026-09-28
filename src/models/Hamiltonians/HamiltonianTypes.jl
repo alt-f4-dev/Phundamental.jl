@@ -9,8 +9,7 @@ end
 model_cluster(model::ManyBodyModel) = get(model.parameters, :cluster, nothing)
 model_positions(model::ManyBodyModel) = get(model.parameters, :positions, nothing)
 
-@inline mode_index(site::Integer, internal::Integer, modes_per_site::Integer) =
-    (Int(site) - 1) * Int(modes_per_site) + Int(internal)
+@inline mode_index(site::Integer, internal::Integer, modes_per_site::Integer) = (Int(site) - 1) * Int(modes_per_site) + Int(internal)
 
 _zero_operator() = 0 * IdentityOperator()
 
@@ -23,47 +22,50 @@ end
 function _bond_coupling(value::Number, bond::Bond)
     return value
 end
+
 function _bond_coupling(values::AbstractDict, bond::Bond)
     return haskey(values, bond.shell) ? values[bond.shell] : 0
 end
-_bond_coupling(values::AbstractVector, bond::Bond) =
-    bond.shell <= length(values) ? values[bond.shell] : 0
+
+_bond_coupling(values::AbstractVector, bond::Bond) = bond.shell <= length(values) ? values[bond.shell] : 0
 _bond_coupling(f::Function, bond::Bond) = f(bond)
 
 function _site_value(value::Number, i::Int, site::CrystalSite)
     return value
 end
+
 _site_value(values::AbstractVector, i::Int, site::CrystalSite) = values[i]
+
 function _site_value(values::AbstractDict, i::Int, site::CrystalSite)
     haskey(values, i) && return values[i]
     haskey(values, site.label) && return values[site.label]
     haskey(values, site.basis_index) && return values[site.basis_index]
     return 0
 end
+
 _site_value(f::Function, i::Int, site::CrystalSite) = f(i, site)
 
 function _validate_material_cluster(material::Material, cluster::Supercell)
     mc = material.crystal
     cc = cluster.crystal
-    lattice_dimension(mc.lattice) == lattice_dimension(cc.lattice) ||
-        throw(ArgumentError("cluster and material crystal dimensions differ"))
-    size(mc.lattice.direct) == size(cc.lattice.direct) ||
-        throw(ArgumentError("cluster and material lattice shapes differ"))
-    isapprox(mc.lattice.direct, cc.lattice.direct; rtol=1e-12, atol=1e-12) ||
-        throw(ArgumentError("cluster lattice does not match material crystal"))
-    length(mc.basis) == length(cc.basis) ||
-        throw(ArgumentError("cluster basis does not match material crystal"))
-    for i in eachindex(mc.basis)
-        a, b = mc.basis[i], cc.basis[i]
-        (a.label == b.label && a.species == b.species &&
-         isapprox(a.fractional, b.fractional; rtol=1e-12, atol=1e-12)) ||
-            throw(ArgumentError("cluster basis site $i does not match material crystal"))
+    lattice_dimension(mc.lattice) == lattice_dimension(cc.lattice) || throw(ArgumentError("cluster and material crystal dimensions differ"))
+    size(mc.lattice.direct) == size(cc.lattice.direct) || throw(ArgumentError("cluster and material lattice shapes differ"))
+    isapprox(mc.lattice.direct, cc.lattice.direct; rtol=1e-12, atol=1e-12) || throw(ArgumentError("cluster lattice does not match material crystal"))
+
+    for site in cluster.sites
+        haskey(material.species, site.species) || throw(ArgumentError("cluster species $(site.species) has no AtomicSpecies definition in Material"))
+        _material_basis_index(material, site)
     end
     return true
 end
 
 function _default_bonds(cluster::Supercell, cutoff::Real, max_shell)
     return neighbor_bonds(cluster; cutoff=cutoff, max_shell=max_shell)
+end
+
+function _default_bonds(cluster::Supercell, ::Nothing, shell)
+    isnothing(shell) && throw(ArgumentError("shell-based bond selection requires a positive shell index"))
+    return bonds_in_shell(cluster, shell)
 end
 
 function _base_parameters(material, cluster, spec, bonds=nothing)
@@ -82,9 +84,7 @@ function _spin_values(material::Material, cluster::Supercell)
     sizehint!(spins, nsites(cluster))
     for i in 1:nsites(cluster)
         S = site_spin(material, cluster, i)
-        isnothing(S) && throw(ArgumentError(
-            "site $i ($(cluster.sites[i].label)) has no spin quantum number in Material.basis_properties"
-        ))
+        isnothing(S) && throw(ArgumentError("site $i ($(cluster.sites[i].label)) has no spin quantum number in Material.basis_properties"))
         push!(spins, S)
     end
     return spins

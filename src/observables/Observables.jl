@@ -7,6 +7,7 @@ using ..Solvers
 include("ObservableTypes.jl")
 include("CorrelationFunctions.jl")
 include("DynamicStructureFactor.jl")
+include("ForwardRequests.jl")
 include("StaticStructureFactor.jl")
 include("SpectralFunctions.jl")
 include("ElectronSpectra.jl")
@@ -24,6 +25,8 @@ export AbstractObservable,
        RejectBosonZeroModes,
        NumberConservingZeroModeProjection,
        ObservableRef,
+       ObservableRequest,
+       SpinTensorStructureFactorRequest,
        SpectrumConvention,
        MomentumField,
        SpinTensorField,

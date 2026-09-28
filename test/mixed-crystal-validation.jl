@@ -134,3 +134,56 @@ end
     @test_throws ArgumentError F.expand_crystal_basis(138, irreps, bad_occs; choice=2)
     @test_throws ArgumentError F.expand_crystal_basis(138, irreps, occs, (Ghost=(x=1,),); choice=2)
 end
+
+@testset "Crystal basis convenience overloads" begin
+    operations = F.space_group_operations(2)
+    cu_irrep = [0.13, 0.21, 0.37]
+    o1_irrep = [0.19, 0.07, 0.28]
+    o2_irrep = [0.31, 0.16, 0.09]
+    cu_properties = (spin=0.5, orbit=:Cu)
+
+    single_basis = F.expand_crystal_basis(operations, :Cu, cu_irrep; properties=cu_properties)
+    single_reference = F.expand_crystal_basis(operations, (Cu=cu_irrep,), (Cu=:Cu,), (Cu=cu_properties,))
+    single_number_basis = F.expand_crystal_basis(2, :Cu, cu_irrep; properties=cu_properties)
+
+    @test [site.label for site in single_basis] == [site.label for site in single_reference]
+    @test [site.fractional for site in single_basis] == [site.fractional for site in single_reference]
+    @test [site.label for site in single_number_basis] == [site.label for site in single_reference]
+    @test all(site -> site.species === :Cu, single_basis)
+    @test all(site -> site.properties == cu_properties, single_basis)
+
+    explicit_species_basis = F.expand_crystal_basis(operations, :Cu1, cu_irrep; species=:Cu, properties=cu_properties)
+    @test all(site -> site.species === :Cu, explicit_species_basis)
+    @test all(startswith(string(site.label), "Cu1_") for site in explicit_species_basis)
+
+    site_labels = (:Cu1, :O1, :O2)
+    irreps = (cu_irrep, o1_irrep, o2_irrep)
+    species = (:Cu, :O, :O)
+    properties = ((orbit=:Cu1,), (orbit=:O1,), (orbit=:O2,))
+    multi_basis = F.expand_crystal_basis(operations, site_labels, irreps; species=species, properties=properties)
+    multi_number_basis = F.expand_crystal_basis(2, site_labels, irreps; species=species, properties=properties)
+    multi_reference = F.expand_crystal_basis(operations,
+                                             (Cu1=cu_irrep, O1=o1_irrep, O2=o2_irrep),
+                                             (Cu1=:Cu, O1=:O, O2=:O),
+                                             (Cu1=properties[1], O1=properties[2], O2=properties[3]))
+
+    @test [site.label for site in multi_basis] == [site.label for site in multi_reference]
+    @test [site.species for site in multi_basis] == [site.species for site in multi_reference]
+    @test [site.fractional for site in multi_basis] == [site.fractional for site in multi_reference]
+    @test [site.properties for site in multi_basis] == [site.properties for site in multi_reference]
+    @test [site.label for site in multi_number_basis] == [site.label for site in multi_reference]
+
+    default_species_basis = F.expand_crystal_basis(operations, (:Cu, :O), (cu_irrep, o1_irrep))
+    @test Set(site.species for site in default_species_basis) == Set((:Cu, :O))
+    @test all(site -> site.properties == NamedTuple(), default_species_basis)
+
+    mixed_occupancy = F.MixedOccupancy(:La => 0.75, :Ba => 0.25)
+    mixed_basis = F.expand_crystal_basis(operations, (:A, :Cu1), (o2_irrep, cu_irrep); species=(mixed_occupancy, :Cu))
+    @test count(site -> site isa F.MixedBasisSite, mixed_basis) == length(F.expand_symmetry_orbit(o2_irrep, operations))
+
+    @test_throws ArgumentError F.expand_crystal_basis(operations, (:O, :O), (o1_irrep, o2_irrep))
+    @test_throws DimensionMismatch F.expand_crystal_basis(operations, (:Cu1, :O1), (cu_irrep,); species=(:Cu, :O))
+    @test_throws DimensionMismatch F.expand_crystal_basis(operations, (:Cu1, :O1), (cu_irrep, o1_irrep); species=(:Cu,))
+    @test_throws DimensionMismatch F.expand_crystal_basis(operations, (:Cu1, :O1), (cu_irrep, o1_irrep); properties=((orbit=:Cu1,),))
+    @test_throws ArgumentError F.expand_crystal_basis(operations, (:Cu1, :O1), (cu_irrep, o1_irrep); species=:Cu)
+end

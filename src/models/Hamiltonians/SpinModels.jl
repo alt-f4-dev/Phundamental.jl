@@ -1,9 +1,17 @@
 # Standard localized-spin Hamiltonians.
 
+"""
+    HeisenbergModel(J; shell=n, field=(0,0,0), hbar=1)
+    HeisenbergModel(J; neighbor_cutoff=r, max_shell=nothing, field=(0,0,0), hbar=1)
+
+Specify an isotropic Heisenberg model. `shell=n` selects exactly geometric
+neighbor shell `n` without requiring a floating-point cutoff. The existing
+`neighbor_cutoff`/`max_shell` form remains available for explicit range control.
+"""
 struct HeisenbergModel{J,F} <: AbstractHamiltonianSpec
     J::J
     field::F
-    neighbor_cutoff::Float64
+    neighbor_cutoff::Union{Nothing,Float64}
     max_shell::Union{Nothing,Int}
     hbar::Float64
 end
@@ -11,16 +19,23 @@ end
 function HeisenbergModel(
     J;
     field=(0.0, 0.0, 0.0),
-    neighbor_cutoff::Real,
+    neighbor_cutoff::Union{Nothing,Real}=nothing,
     max_shell::Union{Nothing,Integer}=nothing,
+    shell::Union{Nothing,Integer}=nothing,
     hbar::Real=1.0,
 )
     length(field) == 3 || throw(DimensionMismatch("field must contain (hx,hy,hz)"))
     hbar > 0 || throw(ArgumentError("hbar must be positive"))
-    return HeisenbergModel(
-        J, tuple(field...), Float64(neighbor_cutoff),
-        isnothing(max_shell) ? nothing : Int(max_shell), Float64(hbar),
-    )
+    !isnothing(max_shell) && max_shell < 1 && throw(ArgumentError("max_shell must be positive"))
+    !isnothing(shell) && shell < 1 && throw(ArgumentError("shell must be positive"))
+    !isnothing(shell) && !isnothing(neighbor_cutoff) && throw(ArgumentError("specify either shell or neighbor_cutoff, not both"))
+    !isnothing(shell) && !isnothing(max_shell) && throw(ArgumentError("shell and max_shell are alternative bond-selection modes"))
+    isnothing(shell) && isnothing(neighbor_cutoff) && throw(ArgumentError("supply either shell or neighbor_cutoff"))
+    !isnothing(neighbor_cutoff) && neighbor_cutoff <= 0 && throw(ArgumentError("neighbor_cutoff must be positive"))
+
+    cutoff = isnothing(neighbor_cutoff) ? nothing : Float64(neighbor_cutoff)
+    selected_shell = isnothing(shell) ? (isnothing(max_shell) ? nothing : Int(max_shell)) : Int(shell)
+    return HeisenbergModel(J, tuple(field...), cutoff, selected_shell, Float64(hbar))
 end
 
 struct XXZModel{JXY,JZ,F} <: AbstractHamiltonianSpec
@@ -41,10 +56,7 @@ function XXZModel(
     hbar::Real=1.0,
 )
     hbar > 0 || throw(ArgumentError("hbar must be positive"))
-    return XXZModel(
-        Jxy, Jz, field_z, Float64(neighbor_cutoff),
-        isnothing(max_shell) ? nothing : Int(max_shell), Float64(hbar),
-    )
+    return XXZModel(Jxy, Jz, field_z, Float64(neighbor_cutoff), isnothing(max_shell) ? nothing : Int(max_shell), Float64(hbar))
 end
 
 function _spin_representation(spins)
@@ -59,12 +71,7 @@ function _spin_representation(spins)
     )
 end
 
-function build_model(
-    material::Material,
-    cluster::Supercell,
-    spec::HeisenbergModel;
-    bonds=nothing,
-)
+function build_model(material::Material, cluster::Supercell, spec::HeisenbergModel; bonds=nothing)
     _validate_material_cluster(material, cluster)
     B = isnothing(bonds) ? _default_bonds(cluster, spec.neighbor_cutoff, spec.max_shell) : collect(bonds)
     spins = _spin_values(material, cluster)
@@ -101,12 +108,7 @@ function build_model(
     )
 end
 
-function build_model(
-    material::Material,
-    cluster::Supercell,
-    spec::XXZModel;
-    bonds=nothing,
-)
+function build_model(material::Material, cluster::Supercell, spec::XXZModel; bonds=nothing)
     _validate_material_cluster(material, cluster)
     B = isnothing(bonds) ? _default_bonds(cluster, spec.neighbor_cutoff, spec.max_shell) : collect(bonds)
     spins = _spin_values(material, cluster)

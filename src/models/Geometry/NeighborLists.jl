@@ -148,6 +148,97 @@ end
 
 bonds_in_shell(bonds::AbstractVector{<:Bond}, shell::Integer) = [bond for bond in bonds if bond.shell == shell]
 
+function _open_cluster_cutoff(supercell::Supercell, atol::Real, rtol::Real)
+    N = nsites(supercell)
+    N >= 2 || throw(ArgumentError("an open cluster requires at least two sites to define a neighbor shell"))
+    maxdistance = 0.0
+    for i in 1:(N - 1), j in (i + 1):N
+        maxdistance = max(maxdistance, norm(supercell.sites[j].cartesian - supercell.sites[i].cartesian))
+    end
+    maxdistance > 0 || throw(ArgumentError("open cluster contains no nonzero pair distance"))
+    margin = max(Float64(atol), Float64(rtol) * maxdistance, 10eps(Float64) * max(maxdistance, 1.0))
+    return maxdistance + margin
+end
+
+function _periodic_shell_cutoff(supercell::Supercell, shell::Integer, atol::Real, rtol::Real)
+    lattice = supercell.crystal.lattice
+    translation = lattice.direct * Diagonal(supercell.repetitions)
+    sigma_min = Base.minimum(svdvals(translation))
+    sigma_min > 0 || throw(ArgumentError("supercell translation matrix is singular"))
+    cutoff = Float64(sigma_min)
+
+    for _ in 1:64
+        bonds = neighbor_bonds(supercell; cutoff=cutoff, atol=atol, rtol=rtol)
+        if !isempty(bonds) && maximum(bond.shell for bond in bonds) >= shell
+            shell_distance = maximum(bond.distance for bond in bonds if bond.shell == shell)
+            margin = max(Float64(atol), Float64(rtol) * shell_distance, 10eps(Float64) * max(shell_distance, 1.0))
+            return shell_distance + margin
+        end
+        cutoff *= 2
+        isfinite(cutoff) || break
+    end
+
+    throw(ArgumentError("failed to locate neighbor shell $shell while expanding the periodic search radius"))
+end
+
+"""
+    bonds_in_shell(supercell, shell; atol=1e-8, rtol=1e-8)
+
+Discover and return one geometric neighbor shell without requiring the caller
+to choose a distance cutoff. Open clusters are searched over all explicit site
+pairs. Periodic clusters expand the image-search radius until the requested
+shell is complete.
+"""
+function bonds_in_shell(supercell::Supercell, shell::Integer; atol::Real=1e-8, rtol::Real=1e-8)
+    shell >= 1 || throw(ArgumentError("shell must be positive"))
+    atol >= 0 || throw(ArgumentError("atol must be nonnegative"))
+    rtol >= 0 || throw(ArgumentError("rtol must be nonnegative"))
+
+    cutoff = any(supercell.periodic) ? _periodic_shell_cutoff(supercell, shell, atol, rtol) : _open_cluster_cutoff(supercell, atol, rtol)
+    bonds = neighbor_bonds(supercell; cutoff=cutoff, atol=atol, rtol=rtol)
+    selected = bonds_in_shell(bonds, shell)
+    isempty(selected) && throw(ArgumentError("cluster does not contain neighbor shell $shell"))
+    return selected
+end
+
+"""
+    bond_cluster(supercell, bond)
+
+Materialize the two endpoints of `bond` as an explicit open two-site cluster.
+For a periodic image bond, the second endpoint is placed at the translated
+image position encoded by `bond.displacement`. Basis-site properties are copied
+from the source crystal so the derived cluster retains local physical metadata.
+"""
+function bond_cluster(supercell::Supercell, bond::Bond)
+    N = nsites(supercell)
+    1 <= bond.i <= N || throw(BoundsError(supercell.sites, bond.i))
+    1 <= bond.j <= N || throw(BoundsError(supercell.sites, bond.j))
+
+    site_i = supercell.sites[bond.i]
+    site_j = supercell.sites[bond.j]
+    source_basis = supercell.crystal.basis
+    properties_i = source_basis[site_i.basis_index].properties
+    properties_j = source_basis[site_j.basis_index].properties
+
+    label_i = site_i.label
+    label_j = site_j.label == label_i ? Symbol(string(site_j.label), "_image") : site_j.label
+    fractional_i = copy(site_i.fractional)
+    cartesian_j = site_i.cartesian + bond.displacement
+    fractional_j = cartesian_to_fractional(supercell.crystal.lattice, cartesian_j)
+
+    basis = BasisSite[
+        BasisSite(label_i, site_i.species, fractional_i; properties=properties_i),
+        BasisSite(label_j, site_j.species, fractional_j; properties=properties_j),
+    ]
+    crystal = CrystalStructure(supercell.crystal.lattice, basis)
+    cluster = Supercell(crystal, fill(1, lattice_dimension(crystal.lattice)); periodic=false)
+
+    displacement = site_position(cluster, 2) - site_position(cluster, 1)
+    isapprox(displacement, bond.displacement; rtol=1e-10, atol=1e-10) ||
+        throw(ErrorException("materialized bond displacement does not match the source bond"))
+    return cluster
+end
+
 function coordination_numbers(supercell::Supercell, bonds::AbstractVector{<:Bond})
     z = zeros(Int, nsites(supercell))
     @inbounds for bond in bonds

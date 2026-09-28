@@ -469,6 +469,7 @@ using ..Solvers
 include("observables/ObservableTypes.jl")
 include("observables/CorrelationFunctions.jl")
 include("observables/DynamicStructureFactor.jl")
+include("observables/ForwardRequests.jl")
 include("observables/SpinWaveStructureFactor.jl")
 include("observables/StaticStructureFactor.jl")
 include("observables/SpectralFunctions.jl")
@@ -489,6 +490,7 @@ export AbstractObservable,
        NumberConservingZeroModeProjection,
        ObservableRef,
        ObservableRequest,
+       SpinTensorStructureFactorRequest,
        SpectrumConvention,
        MomentumField,
        SpinTensorField,
@@ -618,6 +620,7 @@ export BravaisLattice,
        Bond,
        neighbor_bonds,
        bonds_in_shell,
+       bond_cluster,
        coordination_numbers,
        LocalFrame,
        LocalFrameField,
@@ -715,6 +718,7 @@ export AbstractHamiltonianSpec,
 
 end # module Models
 
+include("ConvenienceAPI.jl")
 
 # =============================================================================
 # 7. Canonical thermodynamics, thermal sampling, and linked clusters
@@ -990,6 +994,7 @@ using .Solvers
 
 using .Observables: AbstractProbe,
                     ObservableRequest,
+                    SpinTensorStructureFactorRequest,
                     AbstractBroadening,
                     AbstractResolution,
                     AbstractBosonZeroModePolicy,
@@ -1058,6 +1063,7 @@ using .Models: BravaisLattice,
                Bond,
                neighbor_bonds,
                bonds_in_shell,
+               bond_cluster,
                coordination_numbers,
                AtomicSpecies,
                lookup_species,
@@ -1642,6 +1648,7 @@ export AbstractProbe,
        RejectBosonZeroModes,
        NumberConservingZeroModeProjection,
        ObservableRequest,
+       SpinTensorStructureFactorRequest,
        MomentumField,
        SpinTensorField,
        SpectrumConvention,
@@ -1707,6 +1714,7 @@ export BravaisLattice,
        Bond,
        neighbor_bonds,
        bonds_in_shell,
+       bond_cluster,
        coordination_numbers,
        AtomicSpecies,
        SiteProperties,
@@ -1714,11 +1722,17 @@ export BravaisLattice,
        Supercell,
        disordered_supercell,
        lookup_species,
+       AbstractMagneticFormFactor,
+       ConstantFormFactor,
+       GaussianFormFactor,
+       form_factor,
        DebyeWallerTensor,
        debye_waller_factor,
        MeanSquareDisplacementResult,
        mean_square_displacement,
        phonon_debye_waller_tensors,
+       site_g_tensor,
+       site_form_factor,
        mean_mass,
        mean_scattering_length,
        AbstractHamiltonianSpec,

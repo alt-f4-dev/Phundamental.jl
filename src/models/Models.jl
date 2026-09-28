@@ -48,6 +48,7 @@ export BravaisLattice,
        Bond,
        neighbor_bonds,
        bonds_in_shell,
+       bond_cluster,
        coordination_numbers
 
 # Materials

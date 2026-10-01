@@ -22,17 +22,9 @@ _spin_tensor_qgrid(Q::Tuple) = collect(Q)
 
 Describe a full Cartesian spin-tensor structure-factor calculation for `ForwardProblem`. `Q` may be one scalar/vector momentum or a collection of momentum vectors. Local spin keys and positions are resolved from the model at evaluation time, so exact representation transformations automatically use the transformed registered observables.
 """
-function SpinTensorStructureFactorRequest(
-    Q,
-    axis;
-    temperature::Real=0.0,
-    broadening::AbstractBroadening=LorentzianBroadening(0.05),
-    convention::SpectrumConvention=SpectrumConvention(),
-    sites=nothing,
-    degeneracy_tol::Real=1e-10,
-    weight_tol::Real=0.0,
-    metadata=Dict{Symbol,Any}(),
-)
+function SpinTensorStructureFactorRequest(Q, axis; temperature::Real=0.0, broadening::AbstractBroadening=LorentzianBroadening(0.05),
+                                          convention::SpectrumConvention=SpectrumConvention(), sites=nothing, degeneracy_tol::Real=1e-10,
+                                          weight_tol::Real=0.0, metadata=Dict{Symbol,Any}())
     temperature >= 0 || throw(ArgumentError("temperature must be nonnegative"))
     degeneracy_tol >= 0 || throw(ArgumentError("degeneracy_tol must be nonnegative"))
     weight_tol >= 0 || throw(ArgumentError("weight_tol must be nonnegative"))
@@ -44,10 +36,8 @@ function SpinTensorStructureFactorRequest(
         all(>(0), values) || throw(ArgumentError("sites must contain positive indices"))
         values
     end
-    return SpinTensorStructureFactorRequest(
-        _spin_tensor_qgrid(Q), collect(axis), Float64(temperature), convention, broadening,
-        Float64(degeneracy_tol), Float64(weight_tol), site_selection, Dict{Symbol,Any}(metadata),
-    )
+    return SpinTensorStructureFactorRequest(_spin_tensor_qgrid(Q), collect(axis), Float64(temperature), convention, broadening,
+                                            Float64(degeneracy_tol), Float64(weight_tol), site_selection, Dict{Symbol,Any}(metadata))
 end
 
 function _spin_tensor_request_field(request::SpinTensorStructureFactorRequest, model::ManyBodyModel)
@@ -64,29 +54,14 @@ function _spin_tensor_request_field(request::SpinTensorStructureFactorRequest, m
         haskey(model.observables, key) || throw(KeyError("SpinTensorStructureFactorRequest requires registered observable $key"))
     end
 
-    return SpinTensorField(
-        xkeys=xkeys,
-        ykeys=ykeys,
-        zkeys=zkeys,
-        positions=positions[sites],
-        normalization=request.convention.fourier_normalization,
-    )
+    return SpinTensorField(xkeys=xkeys, ykeys=ykeys, zkeys=zkeys, positions=positions[sites], normalization=request.convention.fourier_normalization)
 end
 
 function (request::SpinTensorStructureFactorRequest)(model::ManyBodyModel, solution)
     field = _spin_tensor_request_field(request, model)
-    result = spin_tensor_structure_factor(
-        model,
-        solution,
-        field,
-        request.qgrid,
-        request.axis;
-        temperature=request.temperature,
-        convention=request.convention,
-        broadening=request.broadening,
-        degeneracy_tol=request.degeneracy_tol,
-        weight_tol=request.weight_tol,
-    )
+    result = spin_tensor_structure_factor(model, solution, field, request.qgrid, request.axis; temperature=request.temperature,
+                                          convention=request.convention, broadening=request.broadening, degeneracy_tol=request.degeneracy_tol,
+                                          weight_tol=request.weight_tol)
     metadata = copy(result.metadata)
     metadata[:observable_request] = :spin_tensor_structure_factor
     metadata[:request_metadata] = copy(request.metadata)
@@ -112,22 +87,13 @@ end
 
 Describe a zero-temperature site-resolved one-particle spectral-function calculation for `ForwardProblem`. The canonical ground sector is supplied by the solver attached to the forward problem and is reused rather than solved a second time; the request constructs only the spin-resolved particle-addition and particle-removal Green-function sectors.
 """
-function LocalElectronSpectralFunctionRequest(
-    axis;
-    spin::Symbol=:up,
-    sites=nothing,
-    eta::Real=0.05,
-    normalization::Symbol=:spectral_density,
-    green_krylov_dim::Integer=192,
-    tol::Real=1e-10,
-    green_reorthogonalize::Bool=false,
-    parallel::Bool=true,
-    max_basis_dimension::Integer=50_000_000,
-    metadata=Dict{Symbol,Any}(),
-)
+function LocalElectronSpectralFunctionRequest(axis; spin::Symbol=:up, sites=nothing, eta::Real=0.05, normalization::Symbol=:spectral_density,
+                                              green_krylov_dim::Integer=192, tol::Real=1e-10, green_reorthogonalize::Bool=false,
+                                              parallel::Bool=true, max_basis_dimension::Integer=50_000_000, metadata=Dict{Symbol,Any}())
     spin in (:up, :down) || throw(ArgumentError("spin must be :up or :down"))
     eta > 0 || throw(ArgumentError("eta must be positive"))
-    normalization in (:spectral_density, :minus_im_over_pi, :senechal) || throw(ArgumentError("normalization must be :spectral_density, :minus_im_over_pi, or :senechal"))
+    normalization in (:spectral_density, :minus_im_over_pi, :senechal) ||
+        throw(ArgumentError("normalization must be :spectral_density, :minus_im_over_pi, or :senechal"))
     green_krylov_dim > 1 || throw(ArgumentError("green_krylov_dim must exceed one"))
     tol > 0 || throw(ArgumentError("tol must be positive"))
     max_basis_dimension > 0 || throw(ArgumentError("max_basis_dimension must be positive"))
@@ -144,34 +110,16 @@ function LocalElectronSpectralFunctionRequest(
         values
     end
 
-    return LocalElectronSpectralFunctionRequest(
-        axis_values,
-        spin,
-        site_selection,
-        Float64(eta),
-        normalization,
-        Int(green_krylov_dim),
-        Float64(tol),
-        green_reorthogonalize,
-        parallel,
-        Int(max_basis_dimension),
-        Dict{Symbol,Any}(metadata),
-    )
+    return LocalElectronSpectralFunctionRequest(axis_values, spin, site_selection, Float64(eta), normalization, Int(green_krylov_dim), Float64(tol),
+                                                green_reorthogonalize, parallel, Int(max_basis_dimension), Dict{Symbol,Any}(metadata))
 end
 
 function (request::LocalElectronSpectralFunctionRequest)(model::ManyBodyModel, solution::SolverResult)
     model.representation.algebra isa FermionAlgebra || throw(ArgumentError("LocalElectronSpectralFunctionRequest requires a FermionAlgebra model"))
 
-    workspace = fermion_green_workspace(
-        model,
-        solution;
-        spin=request.spin,
-        green_krylov_dim=request.green_krylov_dim,
-        tol=request.tol,
-        green_reorthogonalize=request.green_reorthogonalize,
-        parallel=request.parallel,
-        max_basis_dimension=request.max_basis_dimension,
-    )
+    workspace = fermion_green_workspace(model, solution; spin=request.spin, green_krylov_dim=request.green_krylov_dim, tol=request.tol,
+                                        green_reorthogonalize=request.green_reorthogonalize, parallel=request.parallel,
+                                        max_basis_dimension=request.max_basis_dimension)
 
     selected_sites = isnothing(request.sites) ? copy(workspace.sites) : request.sites
     site_rows = Int[]
@@ -204,3 +152,188 @@ function (request::LocalElectronSpectralFunctionRequest)(model::ManyBodyModel, s
     )
     return LocalSpectrumResult(copy(selected_sites), copy(request.axis), intensity, metadata)
 end
+
+
+"""Intrinsic basis-resolved harmonic displacement structure factor with values indexed `(iQ, ix, a, b)`, where `a` and `b` label primitive-cell displacement degrees of freedom. Coherent nuclear scattering lengths, the neutron `Q` projection, and instrument resolution are not applied."""
+struct PhononStructureFactorResult{M,Q,X,V,D}
+    model::M
+    q::Q
+    axis::X
+    intensity::V
+    metadata::D
+end
+
+"""
+    PhononStructureFactorRequest(Q, axis; temperature=0, broadening=GaussianBroadening(0.05), convention=SpectrumConvention(spectral_axis=:omega), displacement_prefactor=nothing, zero_mode_tol=nothing, reduction_convention=:first_bz, reduction_atol=1e-12, metadata=Dict())
+
+Describe an intrinsic harmonic phonon structure-factor calculation for `ForwardProblem`. `Q` is the full physical momentum transfer: a scalar or scalar sequence is reciprocal-lattice shorthand only for one-dimensional models, while higher-dimensional calculations use explicit `ReciprocalWaveVector` or `CartesianWaveVector` objects. The request produces a basis-resolved displacement correlation tensor before probe-specific nuclear scattering lengths, neutron polarization factors, or instrument resolution are applied.
+"""
+struct PhononStructureFactorRequest{Q,X,C,B,M} <: AbstractObservable
+    Q::Q
+    axis::X
+    temperature::Float64
+    convention::C
+    broadening::B
+    displacement_prefactor::Union{Nothing,Float64}
+    zero_mode_tol::Union{Nothing,Float64}
+    reduction_convention::Symbol
+    reduction_atol::Float64
+    metadata::M
+end
+
+function PhononStructureFactorRequest(Q, axis; temperature::Real=0.0, broadening::AbstractBroadening=GaussianBroadening(0.05),
+                                      convention::SpectrumConvention=SpectrumConvention(spectral_axis=:omega),
+                                      displacement_prefactor::Union{Nothing,Real}=nothing, zero_mode_tol::Union{Nothing,Real}=nothing,
+                                      reduction_convention::Symbol=:first_bz, reduction_atol::Real=1e-12, metadata=Dict{Symbol,Any}())
+    temperature >= 0 || throw(ArgumentError("temperature must be nonnegative"))
+    isnothing(displacement_prefactor) || displacement_prefactor > 0 || throw(ArgumentError("displacement_prefactor must be positive"))
+    isnothing(zero_mode_tol) || zero_mode_tol >= 0 || throw(ArgumentError("zero_mode_tol must be nonnegative"))
+    reduction_atol >= 0 || throw(ArgumentError("reduction_atol must be nonnegative"))
+    x = _check_axis_grid(axis)
+    displacement_scale = isnothing(displacement_prefactor) ? nothing : Float64(displacement_prefactor)
+    zero_tolerance = isnothing(zero_mode_tol) ? nothing : Float64(zero_mode_tol)
+    return PhononStructureFactorRequest(Q, x, Float64(temperature), convention, broadening, displacement_scale, zero_tolerance,
+                                        reduction_convention, Float64(reduction_atol), Dict{Symbol,Any}(metadata))
+end
+
+function _phonon_structure_Qpoints(request::PhononStructureFactorRequest, model::ManyBodyModel)
+    D = model.parameters[:spatial_dimension]
+    if request.Q isa Real
+        D == 1 || throw(ArgumentError("scalar full-Q coordinates are only unambiguous for one-dimensional models; use an explicit wavevector for D=$D"))
+        return AbstractWaveVector[ReciprocalWaveVector([Float64(request.Q)])]
+    elseif request.Q isa AbstractWaveVector
+        return AbstractWaveVector[request.Q]
+    end
+
+    points = collect(request.Q)
+    isempty(points) && throw(ArgumentError("phonon Q path cannot be empty"))
+    if all(point -> point isa Real, points)
+        D == 1 || throw(ArgumentError("a scalar full-Q path is only unambiguous for one-dimensional models; use explicit wavevectors for D=$D"))
+        return AbstractWaveVector[ReciprocalWaveVector([Float64(point)]) for point in points]
+    end
+    all(point -> point isa AbstractWaveVector, points) ||
+        throw(ArgumentError("phonon Q paths must contain explicit wavevector objects; raw multidimensional vectors are ambiguous between Cartesian and reciprocal coordinates"))
+    return AbstractWaveVector[point for point in points]
+end
+
+function _phonon_structure_decompositions(request::PhononStructureFactorRequest, model::ManyBodyModel)
+    Qpoints = _phonon_structure_Qpoints(request, model)
+    return [decompose_reciprocal_vector(model, Q; convention=request.reduction_convention, atol=request.reduction_atol) for Q in Qpoints]
+end
+
+function _phonon_structure_solver_wavevectors(request::PhononStructureFactorRequest, model::ManyBodyModel)
+    decompositions = _phonon_structure_decompositions(request, model)
+    return [ReciprocalWaveVector(-wavevector_coordinates(decomposition.q_reciprocal)) for decomposition in decompositions]
+end
+
+function _phonon_structure_zero_mask(request::PhononStructureFactorRequest, solution::PhononDispersionResult, iq::Int)
+    omega = view(solution.frequencies, iq, :)
+    if isnothing(request.zero_mode_tol)
+        mask = get(solution.metadata, :zero_mode_mask, nothing)
+        isnothing(mask) && return falses(length(omega))
+        size(mask) == size(solution.frequencies) || throw(DimensionMismatch("phonon dispersion zero-mode mask does not match the frequency array"))
+        return Bool.(view(mask, iq, :))
+    end
+    threshold = request.zero_mode_tol * max(maximum(abs, omega; init=0.0), 1.0)
+    return omega .<= threshold
+end
+
+function _phonon_structure_basis_positions(model::ManyBodyModel)
+    direct = Matrix{Float64}(model.parameters[:phonon_direct_matrix])
+    basis = model.parameters[:phonon_basis_fractional]
+    return [direct * Float64.(fractional) for fractional in basis]
+end
+
+function _evaluate_phonon_structure_factor(request::PhononStructureFactorRequest, model::ManyBodyModel, solution::PhononDispersionResult)
+    decompositions = _phonon_structure_decompositions(request, model)
+    nq = length(decompositions)
+    size(solution.frequencies, 1) == nq || throw(DimensionMismatch("phonon dispersion q-point count does not match the requested full-Q path"))
+    size(solution.modes, 3) == nq || throw(DimensionMismatch("phonon dispersion mode count does not match the requested full-Q path"))
+
+    x = request.axis
+    nx = length(x)
+    ndof = size(solution.modes, 1)
+    size(solution.modes, 2) == ndof || throw(DimensionMismatch("phonon mode matrices must be square"))
+    D = model.parameters[:displacement_dimension]
+    nbasis = model.parameters[:phonon_basis_count]
+    nbasis * D == ndof || throw(DimensionMismatch("phonon basis metadata does not match the normal-mode dimension"))
+    positions = _phonon_structure_basis_positions(model)
+    length(positions) == nbasis || throw(DimensionMismatch("phonon basis-position metadata is inconsistent"))
+
+    displacement_scale = isnothing(request.displacement_prefactor) ? Float64(request.convention.hbar) : request.displacement_prefactor
+    tensor = zeros(ComplexF64, nq, nx, ndof, ndof)
+    skipped_zero_modes = Vector{Vector{Int}}(undef, nq)
+    Qcartesian = Vector{Vector{Float64}}(undef, nq)
+    reduced_q = Vector{Vector{Float64}}(undef, nq)
+    reciprocal_G = Vector{Vector{Float64}}(undef, nq)
+    eigenvector_qprime = Vector{Vector{Float64}}(undef, nq)
+
+    for iq in 1:nq
+        decomposition = decompositions[iq]
+        Qcartesian[iq] = Float64.(wavevector_coordinates(decomposition.Q_cartesian))
+        reduced_q[iq] = Float64.(wavevector_coordinates(decomposition.q_reciprocal))
+        reciprocal_G[iq] = Float64.(wavevector_coordinates(decomposition.G_reciprocal))
+        eigenvector_qprime[iq] = -reduced_q[iq]
+        Gcart = Float64.(wavevector_coordinates(decomposition.G_cartesian))
+        physical_modes = Solvers.physical_displacement_modes(solution, iq)
+        zero_mask = _phonon_structure_zero_mask(request, solution, iq)
+        skipped_zero_modes[iq] = findall(identity, zero_mask)
+
+        for branch in axes(solution.frequencies, 2)
+            zero_mask[branch] && continue
+            omega = Float64(solution.frequencies[iq, branch])
+            omega > 0 || throw(ArgumentError("nonzero phonon modes must have positive frequency"))
+            mode = ComplexF64.(view(physical_modes, :, branch))
+            for site in 1:nbasis
+                phase = cis(dot(Gcart, positions[site]))
+                rows = ((site - 1) * D + 1):(site * D)
+                mode[rows] .*= phase
+            end
+            mode .*= sqrt(displacement_scale / (2omega))
+            line_tensor = mode * adjoint(mode)
+            occupation = if iszero(request.temperature)
+                0.0
+            else
+                inv(expm1(Float64(request.convention.hbar) * omega / (Float64(request.convention.kB) * request.temperature)))
+            end
+            center = request.convention.spectral_axis === :energy ? Float64(request.convention.hbar) * omega : omega
+
+            @inbounds for ix in eachindex(x)
+                tensor[iq, ix, :, :] .+= ((occupation + 1) * _kernel_value(request.broadening, x[ix] - center)) .* line_tensor
+                occupation > 0 && (tensor[iq, ix, :, :] .+= (occupation * _kernel_value(request.broadening, x[ix] + center)) .* line_tensor)
+            end
+        end
+    end
+
+    metadata = Dict{Symbol,Any}(
+        :observable => :phonon_structure_factor,
+        :observable_request => :phonon_structure_factor,
+        :temperature => request.temperature,
+        :spectral_axis => request.convention.spectral_axis,
+        :hbar => Float64(request.convention.hbar),
+        :kB => Float64(request.convention.kB),
+        :broadening => request.broadening,
+        :broadening_role => :intrinsic_numerical_line_shape,
+        :displacement_prefactor => displacement_scale,
+        :zero_mode_tolerance => request.zero_mode_tol,
+        :skipped_zero_modes => skipped_zero_modes,
+        :full_Q_cartesian => Qcartesian,
+        :reduced_q_reciprocal => reduced_q,
+        :reciprocal_G_reciprocal => reciprocal_G,
+        :eigenvector_qprime_reciprocal => eigenvector_qprime,
+        :basis_phase_convention => :atomic_position_dynamical_matrix,
+        :coherent_scattering_lengths_applied => false,
+        :neutron_Q_projection_applied => false,
+        :resolution_applied => false,
+        :request_metadata => copy(request.metadata),
+    )
+    return PhononStructureFactorResult(model, Qcartesian, copy(x), tensor, metadata)
+end
+
+function (request::PhononStructureFactorRequest)(model::ManyBodyModel, solution)
+    solution isa PhononDispersionResult ||
+        throw(ArgumentError("PhononStructureFactorRequest requires a PhononDispersionResult; use HarmonicPhononSolver in ForwardProblem"))
+    return _evaluate_phonon_structure_factor(request, model, solution)
+end
+
+export PhononStructureFactorRequest, PhononStructureFactorResult

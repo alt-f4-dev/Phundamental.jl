@@ -34,3 +34,7 @@ const LongitudinalXXZPhononModel = Models.LongitudinalXXZPhononModel
 
 @eval Models export LongitudinalXXZPhononModel
 export LongitudinalXXZPhononModel
+
+# Physical phonon displacement modes are a standard public view of the stored mass-weighted normal modes.
+@eval Solvers export physical_displacement_modes
+export physical_displacement_modes

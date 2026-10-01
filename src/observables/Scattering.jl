@@ -211,8 +211,7 @@ function one_phonon_neutron_lines(
         values
     end
 
-    physical_modes = get(result.metadata, :physical_displacement_modes, nothing)
-    isnothing(physical_modes) && throw(ArgumentError("PhononModeResult does not retain physical displacement modes"))
+    physical_modes = Solvers.physical_displacement_modes(result)
     omega = Float64.(result.frequencies)
     zero_mask, zero_mode_source, zero_mode_tolerance, zero_mode_frequency_threshold = _local_phonon_zero_mode_policy(result, zero_mode_tol)
 

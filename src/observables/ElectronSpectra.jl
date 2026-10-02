@@ -31,8 +31,7 @@ function cluster_perturbation_spectral_function(
     frequency_axis = Float64.(collect(axis))
     isempty(k_values) && throw(ArgumentError("momenta must not be empty"))
     isempty(frequency_axis) && throw(ArgumentError("axis must not be empty"))
-    normalization in (:spectral_density, :minus_im_over_pi, :senechal) ||
-        throw(ArgumentError("normalization must be :spectral_density, :minus_im_over_pi, or :senechal"))
+    normalization in (:spectral_density, :minus_im_over_pi, :senechal) || throw(ArgumentError("normalization must be :spectral_density, :minus_im_over_pi, or :senechal"))
 
     cluster_green = cluster_green_matrix(workspace, frequency_axis; eta=eta, parallel=parallel, krylov_dim=krylov_dim)
     intensity = zeros(Float64, length(k_values), length(frequency_axis))
@@ -76,4 +75,51 @@ function cluster_perturbation_spectral_function(
         :resolution_applied => false,
     )
     return SpectrumResult(k_values, frequency_axis, intensity, metadata)
+end
+
+const _CompositeElectronRepresentation = Representation{S,A,B,P,G,R,O,T} where {S<:AbstractStateSpace,A<:CompositeAlgebra,B<:AbstractBasis,P,G,R,O,T}
+
+"""Evaluate the existing local electronic spectral request for a composite representation by delegating conserved fermion-sector handling to `fermion_green_workspace`."""
+function (request::LocalElectronSpectralFunctionRequest)(model::ManyBodyModel{R}, solution::SolverResult) where {R<:_CompositeElectronRepresentation}
+    workspace = fermion_green_workspace(
+        model,
+        solution;
+        spin=request.spin,
+        green_krylov_dim=request.green_krylov_dim,
+        tol=request.tol,
+        green_reorthogonalize=request.green_reorthogonalize,
+        parallel=request.parallel,
+        max_basis_dimension=request.max_basis_dimension,
+    )
+
+    selected_sites = isnothing(request.sites) ? copy(workspace.sites) : request.sites
+    site_rows = Int[]
+    sizehint!(site_rows, length(selected_sites))
+    for site in selected_sites
+        row = findfirst(==(site), workspace.sites)
+        isnothing(row) && throw(ArgumentError("site $site has no $(request.spin) fermion mode in the model"))
+        push!(site_rows, row)
+    end
+
+    green = cluster_green_matrix(workspace, request.axis; eta=request.eta, parallel=request.parallel)
+    intensity = zeros(Float64, length(selected_sites), length(request.axis))
+    for (output_row, green_row) in enumerate(site_rows), axis_index in eachindex(request.axis)
+        intensity[output_row, axis_index] = _electron_spectral_intensity(green[green_row, green_row, axis_index], request.normalization)
+    end
+
+    metadata = Dict{Symbol,Any}(
+        :observable => :local_electron_spectral_function,
+        :observable_request => :local_electron_spectral_function,
+        :spin => request.spin,
+        :eta => request.eta,
+        :normalization => request.normalization,
+        :ground_sector => workspace.ground_sector,
+        :particle_sector => workspace.particle_sector,
+        :hole_sector => workspace.hole_sector,
+        :ground_solution_reused => get(workspace.metadata, :ground_reused, false),
+        :workspace_metadata => copy(workspace.metadata),
+        :resolution_applied => false,
+        :request_metadata => copy(request.metadata),
+    )
+    return LocalSpectrumResult(copy(selected_sites), copy(request.axis), intensity, metadata)
 end

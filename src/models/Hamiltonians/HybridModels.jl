@@ -159,6 +159,10 @@ function build_model(material::Material, cluster::Supercell, spec::HolsteinModel
     params[:frequencies] = omega
     params[:electron_phonon_couplings] = g
     params[:mode_to_phonon] = [cld(m, 2) for m in 1:nf_modes]
+    params[:fermion_mode_map] = Dict(
+        (i, sigma) => mode_index(i, sigma === :up ? 1 : 2, 2)
+        for i in 1:N for sigma in (:up, :down)
+    )
 
     return ManyBodyModel(
         rep,

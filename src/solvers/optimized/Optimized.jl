@@ -39,4 +39,5 @@ include("SpinWave/LinearSpinWave.jl")
 include("SpinWave/SpinWaveSpectrum.jl")
 
 include("Dispatch.jl")
+include("Fermion/CompositeFermionSectors.jl")
 include("Validation.jl")

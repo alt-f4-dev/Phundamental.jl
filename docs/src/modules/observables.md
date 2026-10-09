@@ -38,7 +38,7 @@ The convention exists to prevent otherwise silent factor errors. For example, a 
 
 `thermal_probabilities` obtains Boltzmann weights for a solved eigensystem at the requested temperature. `eigenbasis_matrix` realizes an observable in the solver eigenbasis.
 
-`correlation_function` evaluates time-domain correlations and returns a `CorrelationResult`. The correlation machinery is built on the common solver-result interface rather than on a particular eigensolver.
+`correlation_function` evaluates time-domain correlations and returns a `CorrelationResult`. The correlation machinery is built on the common solver-result interface rather than on a particular eigensolver. `SusceptibilityResult` is the method-independent momentum/frequency susceptibility container used by nonlocal correlation methods such as the diagrammatic-DMFT extension.
 
 For finite-temperature calculations whose natural object is an imaginary-frequency propagator, use [Greens](greens.md) instead. The Observables correlation functions are aimed at physical real-time/equal-time and spectral response quantities.
 
@@ -50,13 +50,37 @@ For finite-temperature calculations whose natural object is an imaginary-frequen
 
 Broadening here is a representation of discrete intrinsic spectral lines. It is not automatically interpreted as experimental resolution.
 
-## Dynamic structure factors
+## Dynamical correlations and structure factors
 
-`dynamic_structure_factor` computes a scalar dynamic structure factor from a momentum field or equivalent observable request. `spin_tensor_structure_factor` computes the full Cartesian tensor $S^{\alpha\beta}(\mathbf q,\omega)$.
+`dynamical_correlation` is the generic scalar momentum-resolved response primitive. Its one-field form computes the same-field correlation $S_{AA}(\mathbf q,x)$, while its two-field form computes the ordered cross-correlation $S_{AB}(\mathbf q,x)$ from independent `MomentumField`s. The implementation constructs $A_{\mathbf q}$ and $B_{-\mathbf q}$ and inserts no adjoint automatically, so the operator ordering remains explicit.
 
-`SpectrumResult` stores scalar spectra and `TensorSpectrumResult` stores tensor spectra indexed by momentum, spectral point, and Cartesian components. Metadata records conventions, broadening, temperature, and related calculation choices.
+`DynamicalCorrelationRequest` exposes the same primitive through `ForwardProblem`. The one-field constructor avoids requiring the user to provide the same field twice for a same-field correlation, while the two-field constructor is the generic entry point for coupled response. Fields built from registered observable keys remain representation-safe across exact model transformations.
+
+`composite_dynamical_correlation` lifts the same ordered $S_{AB}$ primitive to an arbitrary labeled set of `MomentumField`s and evaluates the complete channel matrix. `CompositeDynamicalCorrelationRequest` carries that matrix-valued response through `ForwardProblem`; its `NamedTuple` field labels become stable channel labels in `CompositeSpectrumResult`. No symmetry relation is imposed between $S_{AB}$ and $S_{BA}$.
+
+`registered_momentum_field` is a model-aware convenience for building a `MomentumField` directly from observable-registry keys and the positions retained by the model. This avoids duplicating geometry when constructing coupled responses from observables already registered by a high-level Hamiltonian builder.
+
+`spin_phonon_dynamical_correlation` is the physical specialization for a `SpinTensorField` coupled to a phonon-displacement field. `SpinPhononCorrelationRequest` resolves the registered spin and displacement families from the current model and returns one response matrix containing the selected spin-spin, spin-phonon, phonon-spin, and phonon-phonon channels. The request defaults to the full Cartesian spin set and can restrict the response with `spin_components`, for example `(:z,)` for a longitudinal channel.
+
+`dynamic_structure_factor` remains the compatibility-preserving one-field specialization of `dynamical_correlation`. `spin_tensor_structure_factor` computes the full Cartesian tensor $S^{\alpha\beta}(\mathbf q,\omega)$.
+
+`SpectrumResult` stores scalar spectra, `TensorSpectrumResult` stores Cartesian tensor spectra, and `CompositeSpectrumResult` stores arbitrary labeled response matrices indexed by momentum, spectral point, row channel, and column channel. Metadata records conventions, broadening, temperature, operator ordering, and related calculation choices.
 
 `detailed_balance_residual` measures the violation of the expected finite-temperature detailed-balance relation and is an important validation diagnostic.
+
+## Common dynamical-response capabilities
+
+Dynamical outputs retain their concrete structures, but the package-level capability protocol now exposes common physical semantics through `response_kind`, `frequency_domain`, `response_statistics`, `momentum_scope`, `operator_channels`, `response_order`, `response_convention`, and `response_capabilities`. `is_dynamical_response` identifies time/frequency-dependent response objects, while `requires_analytic_continuation` is true for Matsubara-domain objects that must be continued before they can represent a real-frequency response.
+
+This protocol intentionally does not collapse `SpectrumResult`, `CompositeSpectrumResult`, `SusceptibilityResult`, Green-function objects, or solver-native results into one container. Downstream code can query their shared semantics while preserving method-specific structure and provenance.
+
+## Explicit causal-response conversions
+
+`spectral_function_from_retarded_green` converts already-retarded scalar Green-function data to the fermionic spectral function, using $A=-\operatorname{Im}G^R/\pi$ for the standard spectral-density normalization. Local and momentum-resolved forms are provided.
+
+`commutator_spectral_density` converts a real-frequency scalar Hermitian retarded susceptibility to the corresponding commutator spectral density. `correlation_spectrum_from_retarded_susceptibility` then applies the equilibrium fluctuation-dissipation relation to obtain the ordered correlation spectrum $S_{AB}$. The susceptibility conversion requires a Hermitian response channel because an arbitrary cross-channel matrix cannot in general be reduced by applying elementwise `-Im` to one scalar component.
+
+These functions reject Matsubara susceptibility axes. Analytic continuation is an independent, method-dependent inference step and is never performed implicitly. If the real-frequency grid contains exactly zero transfer, the fluctuation-dissipation Bose factor requires a limiting procedure; the API therefore requires an explicit `zero_frequency_value` rather than silently inventing that limit.
 
 ## Static structure factors
 
@@ -152,13 +176,19 @@ LehmannLines
 SpectrumResult
 StaticStructureFactorResult
 TensorSpectrumResult
+CompositeSpectrumResult
 CorrelationResult
+SusceptibilityResult
 ScatteringResult
 resolve_observable
 momentum_operator
+registered_momentum_field
 register_observable
 register_spin_tensor
 ObservableRequest
+DynamicalCorrelationRequest
+CompositeDynamicalCorrelationRequest
+SpinPhononCorrelationRequest
 ```
 
 ### Correlations and spectra
@@ -169,10 +199,16 @@ eigenbasis_matrix
 correlation_function
 lehmann_lines
 broaden_lines
+dynamical_correlation
+composite_dynamical_correlation
+spin_phonon_dynamical_correlation
 dynamic_structure_factor
 spin_tensor_structure_factor
 static_structure_factor
 spectral_density
+spectral_function_from_retarded_green
+commutator_spectral_density
+correlation_spectrum_from_retarded_susceptibility
 cluster_perturbation_spectral_function
 detailed_balance_residual
 integrated_spectral_weight

@@ -312,3 +312,75 @@ validate_dmft_result
 ## Additional exported embedding API
 
 The remaining exports are the abstract embedding/lattice/impurity-solver types, `lattice_green`, `mix_self_energy`, and `self_energy_residual`.
+
+## Diagrammatic DMFT extension
+
+The development API adds a first ladder diagrammatic-DMFT layer through `DiagrammaticDMFTProblem`, `DiagrammaticDMFTSolver`, and `DiagrammaticDMFTResult`. The initial implementation consumes a converged single-site `DMFTResult`, a local irreducible two-particle vertex, and momentum-resolved lattice bubbles, then solves the channel-resolved Bethe-Salpeter equation at every supplied momentum.
+
+The resulting momentum-dependent susceptibility is returned as the observable-layer `SusceptibilityResult`, preserving the package boundary between the correlation method and the physical observable. Diagrammatic susceptibilities explicitly report `frequency_domain(result) == :matsubara`, bosonic response statistics, their physical channel, and the requirement for analytic continuation before real-frequency fluctuation-dissipation conversion. The initial ladder implementation does not yet reconstruct a nonlocal self-energy; result metadata records `:nonlocal_self_energy_reconstructed => false` explicitly.
+
+```@docs
+DiagrammaticDMFTProblem
+DiagrammaticDMFTSolver
+DiagrammaticDMFTResult
+susceptibility
+validate_diagrammatic_dmft_result
+```
+
+## Diagrammatic-DMFT numerical controls and validation scope
+
+The ladder diagrammatic-DMFT path can now construct momentum-resolved bubbles directly from a `MomentumResolvedGreenFunction`, propagate the local irreducible vertex through the Bethe-Salpeter equation, and report inversion conditioning and finite-frequency-box completeness. `diagrammatic_convergence` compares two susceptibility grids produced at different numerical cutoffs or meshes.
+
+The present implementation is intentionally scoped to single-channel ladder susceptibility reconstruction. It does **not** claim a complete DΓA, dual-fermion, or parquet implementation and does not reconstruct a momentum-dependent self-energy; `DiagrammaticDMFTResult.metadata[:nonlocal_self_energy_reconstructed]` remains `false`. Research use therefore requires reporting the local DMFT convergence, fermionic and bosonic frequency boxes, momentum mesh, inverse-conditioning diagnostics, and convergence of the resulting susceptibility with respect to those numerical controls.
+
+Published validation targets for this development branch include J. Gukelberger, E. Kozik, and H. Hafermann, *Phys. Rev. B* **96**, 035152 (2017), DOI `10.1103/PhysRevB.96.035152`, for the convergence and failure regimes of diagrammatic extensions around DMFT, and J. P. F. LeBlanc *et al.*, *Phys. Rev. B* **100**, 075123 (2019), DOI `10.1103/PhysRevB.100.075123`, for momentum-dependent magnetic susceptibility and neutron-response observables. Numerical values from those works must be supplied with explicit provenance or digitization uncertainty before they are used as pass/fail fixtures; the package does not treat visually inferred values as exact data.
+
+```@docs
+diagrammatic_convergence
+```
+
+### Published benchmark comparison API
+
+`SusceptibilityBenchmark` stores numerical reference values only when their provenance and uncertainty are explicit. `compare_susceptibility_benchmark` performs direct residual testing without hidden interpolation or figure digitization. `diagrammatic_dmft_benchmark_references` records the peer-reviewed acceptance targets whose numerical fixtures have not yet been embedded, preventing a literature citation from being mistaken for a completed numerical validation.
+
+```@docs
+SusceptibilityBenchmark
+SusceptibilityBenchmarkResult
+compare_susceptibility_benchmark
+diagrammatic_dmft_benchmark_references
+```
+
+## End-to-end ladder DΓA
+
+`LadderDGAProblem` is the research workflow for a one-shot single-band charge/magnetic ladder extension of a converged local DMFT solution. A `MomentumLattice` supplies the dispersion and exact periodic `k -> k+q` maps. The solver obtains the impurity generalized susceptibility from `TauGridFourPoint` or a supplied `ImpurityTwoParticleResult`, extracts local charge and magnetic irreducible vertices, constructs lattice bubbles, solves both Bethe-Salpeter ladders, forms the opposite-spin full vertex, and evaluates the Schwinger-Dyson equation for `Σ(k,iν)` when requested.
+
+```@docs
+MomentumLattice
+periodic_momentum_lattice
+LadderDGA
+LadderDGAProblem
+LadderDGAResult
+MomentumResolvedSelfEnergy
+FullVertex
+full_vertex
+schwinger_dyson_self_energy
+dyson_momentum_green
+nonlocal_self_energy_residual
+```
+
+The initial research implementation is deliberately one-shot: the nonlocal Schwinger-Dyson self-energy is reconstructed after the converged single-site DMFT reference and is not fed back into a new impurity self-consistency loop. The result metadata records `:self_energy_feedback => false`. Frequency-box incompleteness, inversion conditioning, pseudoinverse use, and impurity-grid convergence remain explicit diagnostics rather than hidden implementation details.
+
+Peer-reviewed numerical comparisons use `SusceptibilityBenchmark` and `SelfEnergyBenchmark`. Reference arrays are stored only when their numerical provenance is explicit (published table or supplied supplemental dataset); the API does not silently digitize plots.
+
+
+## Diagrammatic execution policy and performance controls
+
+`DiagrammaticExecutionPolicy` separates execution strategy from the physical `LadderDGA` method. The default `parallel=:serial` preserves deterministic serial execution. `parallel=:threads` distributes independent momentum-transfer Bethe-Salpeter solves, full-vertex reconstruction, lattice-bubble construction, and independent external-momentum rows of the Schwinger-Dyson reconstruction across Julia threads. The physical method, normalization, frequency boxes, and inversion tolerances are unchanged.
+
+The end-to-end solver now constructs the particle-hole lattice bubble once and shares its immutable numerical storage between the charge, magnetic, and opposite-spin channel labels. Since the bubble itself is channel independent, this removes duplicate bubble computation and storage without changing channel-specific vertex or susceptibility calculations. The Schwinger-Dyson implementation also precomputes the `(q,nu,Omega)` vertex-bubble contractions before looping over external momentum.
+
+```@docs
+DiagrammaticExecutionPolicy
+```
+
+For threaded runs, start Julia with more than one Julia thread, for example `julia --threads=auto --project=.`. Dense linear algebra may also use BLAS threads; benchmark local settings before combining both forms of parallelism because oversubscription can reduce performance.

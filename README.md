@@ -167,9 +167,9 @@ Optimized numerical backends do not change the underlying physical representatio
 
 ### Observables and scattering
 
-The observable layer provides static and dynamic correlations, Lehmann spectra, spectral densities, spin tensors, magnetic neutron scattering, coherent one- and multiphonon neutron response, electron spectral functions, ensemble observables, numerical broadening, and instrument-resolution convolution.
+The observable layer provides static and dynamic correlations, Lehmann spectra, spectral densities, spin tensors, labeled arbitrary-composite response matrices, high-level spin-phonon response, magnetic neutron scattering, coherent one- and multiphonon neutron response, electron spectral functions, ensemble observables, numerical broadening, and instrument-resolution convolution.
 
-Intrinsic spectra, probe cross sections, and instrument response are represented as separate stages.
+Intrinsic spectra, coupled response matrices, probe cross sections, and instrument response are represented as separate stages. Dynamical outputs also expose a common semantic capability contract for response kind, frequency domain, statistics, momentum scope, operator channels, and response order; retarded Green-function and susceptibility conversions are explicit, while Matsubara analytic continuation remains separate.
 
 ### Thermodynamics
 

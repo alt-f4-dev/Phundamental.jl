@@ -37,6 +37,10 @@ Constructors accept scalar-frequency vectors, vectors of square matrices, or a r
 
 Two objects entering a Dyson or comparison operation must carry compatible axis type, Matsubara indices, inverse temperature, and matrix dimension. The package checks these conditions rather than relying on array shape alone.
 
+At the package level, these frequency objects also participate in the common dynamical-response capability protocol. A Matsubara `GreenFunction` reports `response_kind(G) == :green_function`, `frequency_domain(G) == :matsubara`, `response_statistics(G) == :fermionic`, and `requires_analytic_continuation(G) == true`. This describes the domain of the computed object; it does not perform analytic continuation.
+
+When an independent calculation has already produced a scalar retarded real-frequency Green function, `spectral_function_from_retarded_green` in [Observables](observables.md) performs the explicit $-\operatorname{Im}G^R/\pi$ projection. Matsubara-to-real continuation remains a separate numerical inference and is not hidden inside that conversion.
+
 ## Noninteracting Green functions
 
 `noninteracting_green` constructs $G_0$ from a one-body Hamiltonian and chemical-potential convention. `zero_self_energy` constructs the structurally compatible zero self-energy used to initialize noninteracting calculations and DMFT iterations.
@@ -224,3 +228,56 @@ validate_green_function
 ## Additional exported Green-function API
 
 The remaining public accessors are `frequency_axis`, `frequency_values`, `component_labels`, `matrix_dimension`, `scalar_frequency_values`, `nambu_index`, `normal_block`, `anomalous_block`, and `hole_block`.
+
+## Two-particle Matsubara objects
+
+The development API adds a bosonic Matsubara transfer axis and scalar-channel two-particle objects required by diagrammatic extensions of DMFT. `GeneralizedSusceptibility` and `IrreducibleVertex` store matrices in fermionic-frequency indices for every bosonic transfer frequency while retaining an explicit scattering-channel label.
+
+`irreducible_vertex` and `bethe_salpeter` use the matched convention $\Gamma=\chi_0^{-1}-\chi^{-1}$ and $\chi=(\chi_0^{-1}-\Gamma)^{-1}$. The convention is explicit because channel signs and normalization factors must not be inferred silently when additional spin/orbital conventions are introduced later.
+
+```@docs
+BosonicMatsubaraAxis
+GeneralizedSusceptibility
+IrreducibleVertex
+irreducible_vertex
+bethe_salpeter
+physical_susceptibility
+```
+
+## Numerically controlled two-particle inversion and lattice bubbles
+
+Two-particle matrix inversions use singular-value diagnostics rather than unconditional dense inversion. `TwoParticleInverseDiagnostics` records the numerical rank, inversion cutoff, condition number, and whether a pseudoinverse was requested. `irreducible_vertex` and `bethe_salpeter` retain those diagnostics in result metadata for every bosonic transfer frequency.
+
+`MomentumResolvedGreenFunction` stores a scalar single-band $G(\mathbf{k},i\nu)$ on an explicit momentum list. `momentum_green` constructs this object from a local self-energy, `periodic_momentum_shift_maps` produces exact momentum-transfer maps on periodic Cartesian grids, and `lattice_bubble` evaluates the particle-hole bubble with explicit Matsubara normalization. The default frequency-box policy is strict: a missing $\nu+\Omega$ entry raises an error rather than being silently truncated.
+
+```@docs
+TwoParticleInverseDiagnostics
+MomentumResolvedGreenFunction
+momentum_green
+periodic_momentum_shift_maps
+lattice_bubble
+local_bubble
+```
+
+## Impurity four-point reference backend
+
+`TauGridFourPoint` provides a deterministic exact-diagonalization reference path for the connected local particle-hole four-point function. It evaluates the thermal trace in the exact eigenbasis on a midpoint imaginary-time grid and Fourier-projects the result to `χ(ν,ν′,Ω)`. The backend exposes `ntime` as a convergence parameter and rejects Hilbert spaces above an explicit `max_dimension`; it is intended for validation and small finite-bath references rather than large production impurity calculations.
+
+```@docs
+AbstractImpurityTwoParticleBackend
+TauGridFourPoint
+ImpurityTwoParticleResult
+impurity_two_particle
+impurity_two_particle_residual
+```
+
+Finite fermionic boxes are represented by an active-frequency mask for each bosonic transfer. Bethe-Salpeter and inverse-Bethe-Salpeter solves operate only on the mathematically supported sub-block instead of regularizing artificial zero rows introduced by missing `ν+Ω` frequencies.
+
+
+## Optimized impurity four-point reference backend
+
+`TauGridFourPoint` retains the midpoint imaginary-time discretization and physical Fourier convention used by the original reference implementation, but now exposes `algorithm=:factored|:direct`, `parallel=:serial|:threads`, and `equal_time=:symmetric|:ordered`. The default `:factored` algorithm reuses exact spectral propagators and factors repeated ordered-time matrix products over the six time-ordering simplices. `:direct` preserves the original pointwise trace implementation as an independent regression reference. The default `equal_time=:symmetric` averages all admissible fermionic orderings on grid cells where two or three sampled imaginary times coincide. These equal-time surfaces have zero measure in the continuum integral but occupy `O(N_tau^2)` points on a product grid; assigning them to one arbitrary ordering therefore produces an `O(1/N_tau)` quadrature bias that is strongly amplified by inverse-Bethe-Salpeter vertex extraction. `equal_time=:ordered` is retained for reproducing the legacy finite-grid convention.
+
+The optimized backend projects the same-spin cube before constructing the opposite-spin cube, so both `N_tau^3` work arrays are not retained simultaneously. Fourier projection is expressed as matrix contractions rather than allocating one Kronecker-like phase vector for every fermionic frequency. `parallel=:threads` distributes the six ordered-time permutation regions across Julia tasks; equal-time boundary cells are accumulated under a small critical section while all strict-ordering cells remain disjoint. Users should benchmark Julia-thread and BLAS-thread settings on their local hardware to avoid oversubscription.
+
+Particle-hole bubbles are marked internally as diagonal in the two fermionic indices. Bethe-Salpeter and inverse-Bethe-Salpeter operations use an exact diagonal inversion path for these bubbles while retaining the dense conditioned inversion for non-diagonal susceptibilities and kernels. This changes computational cost, not the two-particle normalization or physical convention.

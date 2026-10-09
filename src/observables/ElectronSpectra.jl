@@ -62,6 +62,12 @@ function cluster_perturbation_spectral_function(
 
     metadata = Dict{Symbol,Any}(
         :observable => :cluster_perturbation_spectral_function,
+        :response_kind => :spectral_function,
+        :frequency_domain => :real,
+        :statistics => :fermionic,
+        :momentum_scope => :momentum_resolved,
+        :response_order => 2,
+        :correlation_scope => :short_intermediate_spatial,
         :eta => Float64(eta),
         :normalization => normalization,
         :spin => workspace.spin,
@@ -110,6 +116,11 @@ function (request::LocalElectronSpectralFunctionRequest)(model::ManyBodyModel{R}
     metadata = Dict{Symbol,Any}(
         :observable => :local_electron_spectral_function,
         :observable_request => :local_electron_spectral_function,
+        :response_kind => :spectral_function,
+        :frequency_domain => :real,
+        :statistics => :fermionic,
+        :momentum_scope => :local,
+        :response_order => 2,
         :spin => request.spin,
         :eta => request.eta,
         :normalization => request.normalization,

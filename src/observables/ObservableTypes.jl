@@ -136,9 +136,26 @@ struct TensorSpectrumResult{Q,X,V,M}
     metadata::M
 end
 
+"""Labeled composite dynamical spectrum with ordered pair values indexed `(iq, ix, a, b)`, where `a` and `b` address entries in `channels`."""
+struct CompositeSpectrumResult{C,Q,X,V,M}
+    channels::C
+    q::Q
+    axis::X
+    intensity::V
+    metadata::M
+end
+
 """Time-domain correlation result."""
 struct CorrelationResult{T,V,M}
     times::T
+    values::V
+    metadata::M
+end
+
+"""Momentum-resolved susceptibility on an explicit frequency axis with values indexed `(iq, iω)`."""
+struct SusceptibilityResult{Q,A,V,M}
+    q::Q
+    axis::A
     values::V
     metadata::M
 end
@@ -197,6 +214,33 @@ function momentum_operator(model::ManyBodyModel, field::MomentumField, q)
         push!(terms, (aN * _phase(q, position)) * op)
     end
     return length(terms) == 1 ? terms[1] : OperatorSum(terms)
+end
+
+"""
+    registered_momentum_field(model, keys; sites=nothing, normalization=:sqrtN)
+
+Construct a `MomentumField` from observable-registry keys and positions retained by `model`. When `sites=nothing`, `keys` must contain one entry for every model position. Otherwise `sites` selects the corresponding model positions and must contain one site index per key. Every key is resolved immediately so invalid or non-operator registry entries fail before the response calculation begins.
+"""
+function registered_momentum_field(model::ManyBodyModel, keys; sites=nothing, normalization::Symbol=:sqrtN)
+    positions = get(model.parameters, :positions, nothing)
+    isnothing(positions) && throw(ArgumentError("registered_momentum_field requires model.parameters[:positions]"))
+    keyvec = keys isa Union{Symbol,ObservableRef} ? [keys] : collect(keys)
+    isempty(keyvec) && throw(ArgumentError("registered_momentum_field requires at least one observable key"))
+    all(key -> key isa Symbol || key isa ObservableRef, keyvec) ||
+        throw(ArgumentError("registered_momentum_field keys must be Symbol or ObservableRef registry references"))
+
+    sitevec = if isnothing(sites)
+        length(keyvec) == length(positions) || throw(DimensionMismatch("keys must contain one entry per model position when sites=nothing"))
+        collect(eachindex(positions))
+    else
+        values = sites isa Integer ? [Int(sites)] : Int.(collect(sites))
+        length(values) == length(keyvec) || throw(DimensionMismatch("sites and keys must have the same length"))
+        all(site -> 1 <= site <= length(positions), values) || throw(BoundsError(positions, values))
+        values
+    end
+
+    foreach(key -> resolve_observable(model, key), keyvec)
+    return MomentumField(keyvec, positions[sitevec]; normalization=normalization)
 end
 
 """Return a copy of `model` with one operator observable registered."""

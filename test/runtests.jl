@@ -2,6 +2,9 @@ using Phundamental
 
 include("generalized-api-validation.jl")
 include("high-level-forward-api-validation.jl")
+include("dynamical-correlation-api-validation.jl")
+include("composite-response-api-validation.jl")
+include("response-capability-api-validation.jl")
 include("electronic-forward-api-validation.jl")
 include("electron-phonon-forward-api-validation.jl")
 include("phonon-forward-api-validation.jl")
@@ -17,3 +20,11 @@ include("embedding/dmft-reference-validation.jl")
 
 ENV["PHUNDAMENTAL_BOSON_CONVERGENCE_STRICT"] = 1
 include("bosonic-truncation-convergence-validation.jl")
+
+include("thermodynamics/nlce-api-validation.jl")
+include("thermodynamics/nlce-topology-validation.jl")
+include("greens/lattice-bubble-validation.jl")
+
+include("embedding/diagrammatic-dmft-api-validation.jl")
+include("greens/impurity-four-point-validation.jl")
+include("embedding/ladder-dga-end-to-end-validation.jl")

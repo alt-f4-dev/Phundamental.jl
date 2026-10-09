@@ -526,35 +526,53 @@ function broaden_lines(lines::LehmannLines, axis, broadening::AbstractBroadening
 end
 
 """
-    dynamic_structure_factor(model, result, field, qgrid, axis; ...)
+    dynamical_correlation(model, result, field, qgrid, axis; ...)
+    dynamical_correlation(model, result, field_a, field_b, qgrid, axis; ...)
 
-Compute `S(q,x)` using the registered representation-correct local operators in `field`. The default `B=O_-q` yields the conventional two-point dynamic structure factor. The result is per unit of the selected spectral axis.
+Compute the ordered momentum-resolved correlation spectrum
+
+    S_AB(q,x) = sum_mn p_m <m|A_q|n><n|B_-q|m> delta(x - x_nm),
+
+where `x_nm=E_n-E_m` for `spectral_axis=:energy` and `x_nm=(E_n-E_m)/hbar` for `spectral_axis=:omega`. The one-field method is the same-field convenience form and uses the same `MomentumField` for both operators. The two-field method treats `field_a` and `field_b` independently and inserts no adjoint or conjugation automatically. Both fields must use the same Fourier-normalization convention.
+
+For `spectral_axis=:energy`, the stored Lehmann lines are normalized so their integral over energy is `<A_q B_-q>`. For `spectral_axis=:omega`, the corresponding angular-frequency convention is used. The returned `SpectrumResult` is an intrinsic response before any probe contraction or instrument resolution.
 """
-function dynamic_structure_factor(model::ManyBodyModel, result::SolverResult, field::MomentumField, qgrid, axis;
-                                  temperature::Real=0.0,
-                                  convention::SpectrumConvention=SpectrumConvention(fourier_normalization=field.normalization),
-                                  broadening::AbstractBroadening=LorentzianBroadening(0.05), degeneracy_tol::Real=1e-10,
-                                  weight_tol::Real=0.0)
-    convention.fourier_normalization == field.normalization || throw(ArgumentError(
-        "SpectrumConvention Fourier normalization must match MomentumField normalization"
-    ))
+function dynamical_correlation(model::ManyBodyModel, result::SolverResult, field::MomentumField, qgrid, axis; kwargs...)
+    return dynamical_correlation(model, result, field, field, qgrid, axis; kwargs...)
+end
+
+function dynamical_correlation(model::ManyBodyModel, result::SolverResult, field_a::MomentumField, field_b::MomentumField, qgrid, axis;
+                               temperature::Real=0.0,
+                               convention::SpectrumConvention=SpectrumConvention(fourier_normalization=field_a.normalization),
+                               broadening::AbstractBroadening=LorentzianBroadening(0.05), degeneracy_tol::Real=1e-10,
+                               weight_tol::Real=0.0)
+    field_a.normalization == field_b.normalization || throw(ArgumentError("dynamical-correlation fields must use the same Fourier normalization"))
+    convention.fourier_normalization == field_a.normalization || throw(ArgumentError("SpectrumConvention Fourier normalization must match both MomentumField normalizations"))
 
     qs = collect(qgrid)
     x = _check_axis_grid(axis)
     values = zeros(ComplexF64, length(qs), length(x))
 
     for (iq, q) in enumerate(qs)
-        Oq = momentum_operator(model, field, q)
-        Ominus = momentum_operator(model, field, _negate_q(q))
-        lines = lehmann_lines(model, result, Oq, Ominus; temperature=temperature, convention=convention,
+        A_q = momentum_operator(model, field_a, q)
+        B_minus_q = momentum_operator(model, field_b, _negate_q(q))
+        lines = lehmann_lines(model, result, A_q, B_minus_q; temperature=temperature, convention=convention,
                               degeneracy_tol=degeneracy_tol, weight_tol=weight_tol)
         values[iq, :] .= broaden_lines(lines, x, broadening)
     end
 
     metadata = Dict{Symbol,Any}(
-        :observable => :dynamic_structure_factor,
+        :observable => :dynamical_correlation,
+        :response_kind => :correlation_spectrum,
+        :frequency_domain => :real,
+        :statistics => :unspecified,
+        :momentum_scope => :momentum_resolved,
+        :response_order => 2,
+        :definition => :S_AB,
+        :correlator => :A_q_t_B_minus_q_0,
+        :operator_order => :A_then_B,
         :temperature => float(temperature),
-        :fourier_normalization => field.normalization,
+        :fourier_normalization => field_a.normalization,
         :spectral_axis => convention.spectral_axis,
         :hbar => convention.hbar,
         :kB => convention.kB,
@@ -568,18 +586,22 @@ function dynamic_structure_factor(model::ManyBodyModel, result::SolverResult, fi
 end
 
 """
-    dynamic_structure_factor(model, result::QuadraticModeResult, field, qgrid, axis; ...)
+    dynamical_correlation(model, result::QuadraticModeResult, field, qgrid, axis; ...)
+    dynamical_correlation(model, result::QuadraticModeResult, field_a, field_b, qgrid, axis; ...)
 
-Compute a Gaussian bosonic dynamic structure factor directly from `QuadraticModeResult`. Momentum-field operators may be affine-linear or quadratic in the source bosons. The route includes one-quasiparticle, thermal scattering, and two-quasiparticle channels as required by the observable order, and avoids any truncated many-body Fock basis.
+Compute the same ordered `S_AB(q,x)` directly from a Gaussian bosonic `QuadraticModeResult`. Each momentum field may be affine-linear or quadratic in the source bosons. The mode-native contraction includes one-quasiparticle, thermal scattering, and two-quasiparticle channels required by the operator order without constructing a truncated many-body Fock basis.
 """
-function dynamic_structure_factor(model::ManyBodyModel, result::QuadraticModeResult, field::MomentumField, qgrid, axis;
-                                  temperature::Real=0.0,
-                                  convention::SpectrumConvention=SpectrumConvention(fourier_normalization=field.normalization),
-                                  broadening::AbstractBroadening=LorentzianBroadening(0.05), degeneracy_tol::Real=1e-10,
-                                  weight_tol::Real=0.0, zero_mode_policy::AbstractBosonZeroModePolicy=RejectBosonZeroModes())
-    convention.fourier_normalization == field.normalization || throw(ArgumentError(
-        "SpectrumConvention Fourier normalization must match MomentumField normalization"
-    ))
+function dynamical_correlation(model::ManyBodyModel, result::QuadraticModeResult, field::MomentumField, qgrid, axis; kwargs...)
+    return dynamical_correlation(model, result, field, field, qgrid, axis; kwargs...)
+end
+
+function dynamical_correlation(model::ManyBodyModel, result::QuadraticModeResult, field_a::MomentumField, field_b::MomentumField, qgrid, axis;
+                               temperature::Real=0.0,
+                               convention::SpectrumConvention=SpectrumConvention(fourier_normalization=field_a.normalization),
+                               broadening::AbstractBroadening=LorentzianBroadening(0.05), degeneracy_tol::Real=1e-10,
+                               weight_tol::Real=0.0, zero_mode_policy::AbstractBosonZeroModePolicy=RejectBosonZeroModes())
+    field_a.normalization == field_b.normalization || throw(ArgumentError("dynamical-correlation fields must use the same Fourier normalization"))
+    convention.fourier_normalization == field_a.normalization || throw(ArgumentError("SpectrumConvention Fourier normalization must match both MomentumField normalizations"))
 
     qs = collect(qgrid)
     x = _check_axis_grid(axis)
@@ -588,11 +610,11 @@ function dynamic_structure_factor(model::ManyBodyModel, result::QuadraticModeRes
     projected_zero_modes = Set{Int}()
 
     for (iq, q) in enumerate(qs)
-        source_q = _momentum_boson_quadratic_coefficients(model, field, q)
-        source_minus = _momentum_boson_quadratic_coefficients(model, field, _negate_q(q))
-        projected_q = _quadratic_mode_projection(model, result, source_q)
-        projected_minus = _quadratic_mode_projection(model, result, source_minus)
-        lines = _quadratic_mode_lehmann_lines(result, projected_q, projected_minus; temperature=temperature, convention=convention,
+        source_a = _momentum_boson_quadratic_coefficients(model, field_a, q)
+        source_b = _momentum_boson_quadratic_coefficients(model, field_b, _negate_q(q))
+        projected_a = _quadratic_mode_projection(model, result, source_a)
+        projected_b = _quadratic_mode_projection(model, result, source_b)
+        lines = _quadratic_mode_lehmann_lines(result, projected_a, projected_b; temperature=temperature, convention=convention,
                                               degeneracy_tol=degeneracy_tol, weight_tol=weight_tol, zero_mode_policy=zero_mode_policy)
         values[iq, :] .= broaden_lines(lines, x, broadening)
         lines.metadata[:observable_order] === :quadratic && (observable_order = :quadratic)
@@ -600,9 +622,17 @@ function dynamic_structure_factor(model::ManyBodyModel, result::QuadraticModeRes
     end
 
     metadata = Dict{Symbol,Any}(
-        :observable => :dynamic_structure_factor,
+        :observable => :dynamical_correlation,
+        :response_kind => :correlation_spectrum,
+        :frequency_domain => :real,
+        :statistics => :unspecified,
+        :momentum_scope => :momentum_resolved,
+        :response_order => 2,
+        :definition => :S_AB,
+        :correlator => :A_q_t_B_minus_q_0,
+        :operator_order => :A_then_B,
         :temperature => float(temperature),
-        :fourier_normalization => field.normalization,
+        :fourier_normalization => field_a.normalization,
         :spectral_axis => convention.spectral_axis,
         :hbar => convention.hbar,
         :kB => convention.kB,
@@ -619,6 +649,43 @@ function dynamic_structure_factor(model::ManyBodyModel, result::QuadraticModeRes
         :projected_zero_modes => sort!(collect(projected_zero_modes)),
     )
     return SpectrumResult(qs, x, values, metadata)
+end
+
+function _as_dynamic_structure_factor(result::SpectrumResult)
+    metadata = copy(result.metadata)
+    metadata[:observable] = :dynamic_structure_factor
+    return SpectrumResult(result.q, result.axis, result.intensity, metadata)
+end
+
+"""
+    dynamic_structure_factor(model, result, field, qgrid, axis; ...)
+
+Compute the conventional scalar dynamic structure factor for one `MomentumField`. This is the compatibility-preserving same-field specialization of `dynamical_correlation`, with `A_q` and `B_-q` constructed from the same field.
+"""
+function dynamic_structure_factor(model::ManyBodyModel, result::SolverResult, field::MomentumField, qgrid, axis;
+                                  temperature::Real=0.0,
+                                  convention::SpectrumConvention=SpectrumConvention(fourier_normalization=field.normalization),
+                                  broadening::AbstractBroadening=LorentzianBroadening(0.05), degeneracy_tol::Real=1e-10,
+                                  weight_tol::Real=0.0)
+    result_ab = dynamical_correlation(model, result, field, qgrid, axis; temperature=temperature, convention=convention,
+                                      broadening=broadening, degeneracy_tol=degeneracy_tol, weight_tol=weight_tol)
+    return _as_dynamic_structure_factor(result_ab)
+end
+
+"""
+    dynamic_structure_factor(model, result::QuadraticModeResult, field, qgrid, axis; ...)
+
+Compute the conventional Gaussian-boson scalar dynamic structure factor. This method delegates to the one-field `dynamical_correlation` route and preserves the existing `dynamic_structure_factor` result metadata.
+"""
+function dynamic_structure_factor(model::ManyBodyModel, result::QuadraticModeResult, field::MomentumField, qgrid, axis;
+                                  temperature::Real=0.0,
+                                  convention::SpectrumConvention=SpectrumConvention(fourier_normalization=field.normalization),
+                                  broadening::AbstractBroadening=LorentzianBroadening(0.05), degeneracy_tol::Real=1e-10,
+                                  weight_tol::Real=0.0, zero_mode_policy::AbstractBosonZeroModePolicy=RejectBosonZeroModes())
+    result_ab = dynamical_correlation(model, result, field, qgrid, axis; temperature=temperature, convention=convention,
+                                      broadening=broadening, degeneracy_tol=degeneracy_tol, weight_tol=weight_tol,
+                                      zero_mode_policy=zero_mode_policy)
+    return _as_dynamic_structure_factor(result_ab)
 end
 
 """
@@ -682,6 +749,12 @@ function spin_tensor_structure_factor(
 
     metadata = Dict{Symbol,Any}(
         :observable => :spin_tensor_dynamic_structure_factor,
+        :response_kind => :correlation_spectrum,
+        :frequency_domain => :real,
+        :statistics => :bosonic,
+        :momentum_scope => :momentum_resolved,
+        :response_order => 2,
+        :operator_channels => (:x, :y, :z),
         :components => (:x, :y, :z),
         :temperature => float(temperature),
         :fourier_normalization => norms[1],

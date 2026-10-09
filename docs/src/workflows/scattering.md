@@ -56,15 +56,61 @@ broadening = LorentzianBroadening(0.05)
 
 This width describes how intrinsic delta functions are represented numerically. It is not an instrument resolution parameter.
 
+## Generic scalar dynamical correlations
+
+For a same-field correlation of one scalar field, use the one-field generic form:
+
+```julia
+Saa = dynamical_correlation(working_model, solution, field, qgrid, energy_grid; temperature=temperature, convention=convention, broadening=broadening)
+```
+
+For a coupled or cross-channel response, provide two independent momentum fields:
+
+```julia
+Sab = dynamical_correlation(working_model, solution, field_a, field_b, qgrid, energy_grid; temperature=temperature, convention=convention, broadening=broadening)
+```
+
+The cross-correlation is ordered as $S_{AB}(\mathbf q,x)$ with $A_{\mathbf q}$ and $B_{-\mathbf q}$; the API does not insert an adjoint or conjugation automatically. Both forms return a `SpectrumResult` containing the momentum grid, spectral grid, intrinsic intensity, and calculation metadata.
+
+The same response can enter the high-level forward pipeline through `DynamicalCorrelationRequest`:
+
+```julia
+request = DynamicalCorrelationRequest(field_a, field_b, qgrid, energy_grid; temperature=temperature, convention=convention, broadening=broadening)
+result = forward(ForwardProblem(working_model; solver=OptimizedLanczos(nev=32), observable=request))
+```
+
+## Arbitrary composite response
+
+A coupled model with several registered physical channels can request the complete ordered response matrix without writing one request per pair. Construct labeled momentum fields and pass them as a `NamedTuple`:
+
+```julia
+spin_z = registered_momentum_field(model, [:spin_z_1, :spin_z_2])
+displacement = registered_momentum_field(model, [:boson_displacement_1, :boson_displacement_2])
+fields = (spin_z=spin_z, displacement=displacement)
+request = CompositeDynamicalCorrelationRequest(fields, qgrid, energy_grid; convention=convention, broadening=broadening)
+response = forward(ForwardProblem(model; solver=ExactDiagonalization(), observable=request)).observable_result
+```
+
+`response.intensity[iq, ix, a, b]` is the ordered $S_{ab}(\mathbf q,x)$ associated with `response.channels[a]` and `response.channels[b]`. The matrix therefore retains both cross directions rather than assuming that one is redundant.
+
+For spin-phonon models whose observables follow the standard registry names created by the model builders, `SpinPhononCorrelationRequest` constructs the fields automatically:
+
+```julia
+request = SpinPhononCorrelationRequest(qgrid, energy_grid; spin_components=(:x, :y, :z), convention=convention, broadening=broadening)
+response = forward(ForwardProblem(model; solver=ExactDiagonalization(), observable=request)).observable_result
+```
+
+The resulting channel order is the selected spin components followed by `:phonon_displacement`, so one intrinsic result contains the spin-spin, spin-phonon, phonon-spin, and phonon-phonon blocks before any probe-specific contraction.
+
 ## Scalar dynamic structure factor
 
-For a scalar field,
+The existing `dynamic_structure_factor` API is retained as the one-field structure-factor specialization:
 
 ```julia
 Sqw = dynamic_structure_factor(working_model, solution, field, qgrid, energy_grid; temperature=temperature, convention=convention, broadening=broadening)
 ```
 
-The result is a `SpectrumResult` containing the momentum grid, spectral grid, intrinsic intensity, and calculation metadata.
+Its numerical spectrum is the same as the corresponding one-field `dynamical_correlation`; the legacy observable metadata remains `:dynamic_structure_factor`.
 
 ## Spin-tensor dynamic structure factor
 

@@ -53,20 +53,20 @@ function _convolve_axis2(values::AbstractMatrix, axis, R::GaussianResolution)
     return out
 end
 
-"""Optimized convolution for q-by-axis-by-3-by-3 tensor spectra."""
+"""Optimized convolution for q-by-axis-by-channel-by-channel tensor spectra."""
 function _convolve_axis2(values::AbstractArray{T,4}, axis, R::GaussianResolution) where {T}
     x, half, kernel = _resolution_stencil(axis, R)
     size(values, 2) == length(x) || throw(DimensionMismatch("spectral axis length mismatch"))
     out = zeros(promote_type(T, ComplexF64), size(values))
 
-    @inbounds for iq in axes(values, 1), ix in axes(values, 2), α in 1:3, β in 1:3
+    @inbounds for iq in axes(values, 1), ix in axes(values, 2), a in axes(values, 3), b in axes(values, 4)
         jlo = max(firstindex(x), ix - half)
         jhi = min(lastindex(x), ix + half)
         acc = zero(eltype(out))
         for j in jlo:jhi
-            acc += kernel[(ix - j) + half + 1] * values[iq, j, α, β]
+            acc += kernel[(ix - j) + half + 1] * values[iq, j, a, b]
         end
-        out[iq, ix, α, β] = acc
+        out[iq, ix, a, b] = acc
     end
     return out
 end
@@ -99,6 +99,15 @@ function convolve_resolution(R::GaussianResolution, spectrum::TensorSpectrumResu
     metadata[:resolution_applied] = true
     metadata[:resolution_role] = :instrument_response
     return TensorSpectrumResult(spectrum.q, spectrum.axis, values, metadata)
+end
+
+function convolve_resolution(R::GaussianResolution, spectrum::CompositeSpectrumResult)
+    values = _convolve_axis2(spectrum.intensity, spectrum.axis, R)
+    metadata = copy(spectrum.metadata)
+    metadata[:resolution] = R
+    metadata[:resolution_applied] = true
+    metadata[:resolution_role] = :instrument_response
+    return CompositeSpectrumResult(spectrum.channels, spectrum.q, spectrum.axis, values, metadata)
 end
 
 function convolve_resolution(R::GaussianResolution, spectrum::ScatteringResult)

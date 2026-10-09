@@ -1,5 +1,247 @@
 # Typed high-level observable requests for ForwardProblem.
 
+"""
+    DynamicalCorrelationRequest(field, qgrid, axis; ...)
+    DynamicalCorrelationRequest(field_a, field_b, qgrid, axis; ...)
+
+Describe an intrinsic ordered dynamical correlation `S_AB(q,x)` for `ForwardProblem`. The one-field constructor requests the same-field correlation built from `field` at `q` and `-q`. The two-field constructor requests the cross-correlation between independent momentum fields `A` and `B`; no adjoint or conjugation is inserted automatically.
+
+The request remains representation-safe when its `MomentumField`s use registered observable keys because those observables are transformed with the `ManyBodyModel`. Numerical line broadening is intrinsic to the request and remains separate from probe contraction and instrument resolution.
+"""
+struct DynamicalCorrelationRequest{A,B,Q,X,T,C,R,Z,M} <: AbstractCorrelationObservable
+    field_a::A
+    field_b::B
+    qgrid::Q
+    axis::X
+    temperature::T
+    convention::C
+    broadening::R
+    degeneracy_tol::Float64
+    weight_tol::Float64
+    zero_mode_policy::Z
+    metadata::M
+end
+
+function DynamicalCorrelationRequest(field::MomentumField, qgrid, axis; kwargs...)
+    return DynamicalCorrelationRequest(field, field, qgrid, axis; kwargs...)
+end
+
+function DynamicalCorrelationRequest(field_a::MomentumField, field_b::MomentumField, qgrid, axis; temperature::Real=0.0,
+                                     convention::SpectrumConvention=SpectrumConvention(fourier_normalization=field_a.normalization),
+                                     broadening::AbstractBroadening=LorentzianBroadening(0.05), degeneracy_tol::Real=1e-10,
+                                     weight_tol::Real=0.0, zero_mode_policy::AbstractBosonZeroModePolicy=RejectBosonZeroModes(),
+                                     metadata=Dict{Symbol,Any}())
+    temperature >= 0 || throw(ArgumentError("temperature must be nonnegative"))
+    degeneracy_tol >= 0 || throw(ArgumentError("degeneracy_tol must be nonnegative"))
+    weight_tol >= 0 || throw(ArgumentError("weight_tol must be nonnegative"))
+    field_a.normalization == field_b.normalization || throw(ArgumentError("dynamical-correlation fields must use the same Fourier normalization"))
+    convention.fourier_normalization == field_a.normalization || throw(ArgumentError("SpectrumConvention Fourier normalization must match both MomentumField normalizations"))
+
+    qs = collect(qgrid)
+    isempty(qs) && throw(ArgumentError("qgrid must not be empty"))
+    x = _check_axis_grid(axis)
+    return DynamicalCorrelationRequest(field_a, field_b, qs, x, Float64(temperature), convention, broadening, Float64(degeneracy_tol),
+                                        Float64(weight_tol), zero_mode_policy, Dict{Symbol,Any}(metadata))
+end
+
+function _finalize_dynamical_correlation_request(request::DynamicalCorrelationRequest, result::SpectrumResult)
+    metadata = copy(result.metadata)
+    metadata[:observable_request] = :dynamical_correlation
+    metadata[:request_metadata] = copy(request.metadata)
+    return SpectrumResult(result.q, result.axis, result.intensity, metadata)
+end
+
+function (request::DynamicalCorrelationRequest)(model::ManyBodyModel, solution)
+    result = dynamical_correlation(model, solution, request.field_a, request.field_b, request.qgrid, request.axis;
+                                   temperature=request.temperature, convention=request.convention, broadening=request.broadening,
+                                   degeneracy_tol=request.degeneracy_tol, weight_tol=request.weight_tol)
+    return _finalize_dynamical_correlation_request(request, result)
+end
+
+function (request::DynamicalCorrelationRequest)(model::ManyBodyModel, solution::QuadraticModeResult)
+    result = dynamical_correlation(model, solution, request.field_a, request.field_b, request.qgrid, request.axis;
+                                   temperature=request.temperature, convention=request.convention, broadening=request.broadening,
+                                   degeneracy_tol=request.degeneracy_tol, weight_tol=request.weight_tol,
+                                   zero_mode_policy=request.zero_mode_policy)
+    return _finalize_dynamical_correlation_request(request, result)
+end
+
+"""
+    CompositeDynamicalCorrelationRequest(fields, qgrid, axis; ...)
+
+Describe the complete ordered dynamical-response matrix for a labeled `NamedTuple` of `MomentumField`s. The result contains `S_AB(q,x)` for every ordered pair of named channels and is returned as a `CompositeSpectrumResult`. This is the generic high-level request for arbitrary coupled/composite observables; it does not assume any particular physical sector or coupling mechanism.
+"""
+struct CompositeDynamicalCorrelationRequest{F,Q,X,T,C,R,Z,M} <: AbstractCorrelationObservable
+    fields::F
+    qgrid::Q
+    axis::X
+    temperature::T
+    convention::C
+    broadening::R
+    degeneracy_tol::Float64
+    weight_tol::Float64
+    zero_mode_policy::Z
+    metadata::M
+end
+
+function CompositeDynamicalCorrelationRequest(fields::NamedTuple, qgrid, axis; temperature::Real=0.0,
+                                               convention::SpectrumConvention=SpectrumConvention(fourier_normalization=_composite_field_data(fields)[3]),
+                                               broadening::AbstractBroadening=LorentzianBroadening(0.05), degeneracy_tol::Real=1e-10,
+                                               weight_tol::Real=0.0, zero_mode_policy::AbstractBosonZeroModePolicy=RejectBosonZeroModes(),
+                                               metadata=Dict{Symbol,Any}())
+    temperature >= 0 || throw(ArgumentError("temperature must be nonnegative"))
+    degeneracy_tol >= 0 || throw(ArgumentError("degeneracy_tol must be nonnegative"))
+    weight_tol >= 0 || throw(ArgumentError("weight_tol must be nonnegative"))
+    _, _, normalization = _composite_field_data(fields)
+    convention.fourier_normalization == normalization ||
+        throw(ArgumentError("SpectrumConvention Fourier normalization must match all composite response fields"))
+    qs = collect(qgrid)
+    isempty(qs) && throw(ArgumentError("qgrid must not be empty"))
+    x = _check_axis_grid(axis)
+    return CompositeDynamicalCorrelationRequest(fields, qs, x, Float64(temperature), convention, broadening, Float64(degeneracy_tol),
+                                                 Float64(weight_tol), zero_mode_policy, Dict{Symbol,Any}(metadata))
+end
+
+function _finalize_composite_dynamical_correlation_request(request::CompositeDynamicalCorrelationRequest, result::CompositeSpectrumResult)
+    metadata = copy(result.metadata)
+    metadata[:observable_request] = :composite_dynamical_correlation
+    metadata[:request_metadata] = copy(request.metadata)
+    return CompositeSpectrumResult(result.channels, result.q, result.axis, result.intensity, metadata)
+end
+
+function (request::CompositeDynamicalCorrelationRequest)(model::ManyBodyModel, solution)
+    result = composite_dynamical_correlation(model, solution, request.fields, request.qgrid, request.axis; temperature=request.temperature,
+                                             convention=request.convention, broadening=request.broadening,
+                                             degeneracy_tol=request.degeneracy_tol, weight_tol=request.weight_tol)
+    return _finalize_composite_dynamical_correlation_request(request, result)
+end
+
+function (request::CompositeDynamicalCorrelationRequest)(model::ManyBodyModel, solution::QuadraticModeResult)
+    result = composite_dynamical_correlation(model, solution, request.fields, request.qgrid, request.axis; temperature=request.temperature,
+                                             convention=request.convention, broadening=request.broadening,
+                                             degeneracy_tol=request.degeneracy_tol, weight_tol=request.weight_tol,
+                                             zero_mode_policy=request.zero_mode_policy)
+    return _finalize_composite_dynamical_correlation_request(request, result)
+end
+
+"""
+    SpinPhononCorrelationRequest(qgrid, axis; spin_components=(:x, :y, :z), sites=nothing, spin_prefix=:spin, displacement_prefix=:auto, ...)
+
+Describe a high-level coupled spin-phonon response. At evaluation time the request resolves registered local spin observables and local phonon-displacement observables from the current `ManyBodyModel`, constructs representation-safe momentum fields, and returns the complete ordered response matrix spanning the selected spin components and the displacement channel.
+
+`displacement_prefix=:auto` accepts exactly one complete registered family named either `boson_displacement_i` or `phonon_displacement_i` on the selected sites. Supply an explicit prefix when both families are present or when a custom registry convention is used.
+"""
+struct SpinPhononCorrelationRequest{Q,X,T,C,R,Z,S,CMP,M} <: AbstractCorrelationObservable
+    qgrid::Q
+    axis::X
+    temperature::T
+    convention::C
+    broadening::R
+    degeneracy_tol::Float64
+    weight_tol::Float64
+    zero_mode_policy::Z
+    sites::S
+    spin_components::CMP
+    spin_prefix::Symbol
+    displacement_prefix::Symbol
+    metadata::M
+end
+
+function SpinPhononCorrelationRequest(qgrid, axis; temperature::Real=0.0, spin_components=(:x, :y, :z), sites=nothing,
+                                      spin_prefix::Symbol=:spin, displacement_prefix::Symbol=:auto,
+                                      convention::SpectrumConvention=SpectrumConvention(), broadening::AbstractBroadening=LorentzianBroadening(0.05),
+                                      degeneracy_tol::Real=1e-10, weight_tol::Real=0.0,
+                                      zero_mode_policy::AbstractBosonZeroModePolicy=RejectBosonZeroModes(), metadata=Dict{Symbol,Any}())
+    temperature >= 0 || throw(ArgumentError("temperature must be nonnegative"))
+    degeneracy_tol >= 0 || throw(ArgumentError("degeneracy_tol must be nonnegative"))
+    weight_tol >= 0 || throw(ArgumentError("weight_tol must be nonnegative"))
+    components = _normalize_spin_components(spin_components)
+    selected_sites = if isnothing(sites)
+        nothing
+    else
+        values = sites isa Integer ? [Int(sites)] : Int.(collect(sites))
+        isempty(values) && throw(ArgumentError("sites cannot be empty"))
+        all(>(0), values) || throw(ArgumentError("sites must contain positive indices"))
+        values
+    end
+    qs = collect(qgrid)
+    isempty(qs) && throw(ArgumentError("qgrid must not be empty"))
+    x = _check_axis_grid(axis)
+    return SpinPhononCorrelationRequest(qs, x, Float64(temperature), convention, broadening, Float64(degeneracy_tol),
+                                        Float64(weight_tol), zero_mode_policy, selected_sites, components, spin_prefix,
+                                        displacement_prefix, Dict{Symbol,Any}(metadata))
+end
+
+function _spin_phonon_sites(request::SpinPhononCorrelationRequest, model::ManyBodyModel)
+    positions = get(model.parameters, :positions, nothing)
+    isnothing(positions) && throw(ArgumentError("SpinPhononCorrelationRequest requires model.parameters[:positions]"))
+    sites = isnothing(request.sites) ? collect(eachindex(positions)) : request.sites
+    all(site -> 1 <= site <= length(positions), sites) || throw(BoundsError(positions, sites))
+    return sites, positions
+end
+
+function _spin_phonon_prefix_complete(model::ManyBodyModel, prefix::Symbol, sites)
+    return all(site -> haskey(model.observables, Symbol(string(prefix), "_", string(site))), sites)
+end
+
+function _spin_phonon_displacement_prefix(request::SpinPhononCorrelationRequest, model::ManyBodyModel, sites)
+    request.displacement_prefix !== :auto && return request.displacement_prefix
+    candidates = Symbol[prefix for prefix in (:boson_displacement, :phonon_displacement) if _spin_phonon_prefix_complete(model, prefix, sites)]
+    isempty(candidates) && throw(ArgumentError("SpinPhononCorrelationRequest could not find a complete boson_displacement_i or phonon_displacement_i observable family"))
+    length(candidates) == 1 || throw(ArgumentError("multiple displacement observable families are registered; supply displacement_prefix explicitly"))
+    return only(candidates)
+end
+
+function _spin_phonon_request_fields(request::SpinPhononCorrelationRequest, model::ManyBodyModel)
+    sites, positions = _spin_phonon_sites(request, model)
+    selected_positions = positions[sites]
+    normalization = request.convention.fourier_normalization
+    xkeys = Symbol[Symbol(string(request.spin_prefix), "_x_", string(site)) for site in sites]
+    ykeys = Symbol[Symbol(string(request.spin_prefix), "_y_", string(site)) for site in sites]
+    zkeys = Symbol[Symbol(string(request.spin_prefix), "_z_", string(site)) for site in sites]
+    spin_field = SpinTensorField(xkeys=xkeys, ykeys=ykeys, zkeys=zkeys, positions=selected_positions, normalization=normalization)
+    displacement_prefix = _spin_phonon_displacement_prefix(request, model, sites)
+    displacement_keys = Symbol[Symbol(string(displacement_prefix), "_", string(site)) for site in sites]
+    phonon_field = registered_momentum_field(model, displacement_keys; sites=sites, normalization=normalization)
+
+    for component in request.spin_components
+        field = _spin_component_field(spin_field, component)
+        foreach(key -> resolve_observable(model, key), field.keys)
+    end
+    return spin_field, phonon_field, displacement_prefix, sites
+end
+
+function _finalize_spin_phonon_request(request::SpinPhononCorrelationRequest, result::CompositeSpectrumResult, displacement_prefix::Symbol, sites)
+    metadata = copy(result.metadata)
+    metadata[:observable_request] = :spin_phonon_correlation
+    metadata[:response_family] = :spin_phonon
+    metadata[:spin_components] = request.spin_components
+    metadata[:spin_prefix] = request.spin_prefix
+    metadata[:displacement_prefix] = displacement_prefix
+    metadata[:sites] = copy(sites)
+    metadata[:request_metadata] = copy(request.metadata)
+    return CompositeSpectrumResult(result.channels, result.q, result.axis, result.intensity, metadata)
+end
+
+function (request::SpinPhononCorrelationRequest)(model::ManyBodyModel, solution)
+    spin_field, phonon_field, displacement_prefix, sites = _spin_phonon_request_fields(request, model)
+    result = spin_phonon_dynamical_correlation(model, solution, spin_field, phonon_field, request.qgrid, request.axis;
+                                               spin_components=request.spin_components, temperature=request.temperature,
+                                               convention=request.convention, broadening=request.broadening,
+                                               degeneracy_tol=request.degeneracy_tol, weight_tol=request.weight_tol)
+    return _finalize_spin_phonon_request(request, result, displacement_prefix, sites)
+end
+
+function (request::SpinPhononCorrelationRequest)(model::ManyBodyModel, solution::QuadraticModeResult)
+    spin_field, phonon_field, displacement_prefix, sites = _spin_phonon_request_fields(request, model)
+    result = spin_phonon_dynamical_correlation(model, solution, spin_field, phonon_field, request.qgrid, request.axis;
+                                               spin_components=request.spin_components, temperature=request.temperature,
+                                               convention=request.convention, broadening=request.broadening,
+                                               degeneracy_tol=request.degeneracy_tol, weight_tol=request.weight_tol,
+                                               zero_mode_policy=request.zero_mode_policy)
+    return _finalize_spin_phonon_request(request, result, displacement_prefix, sites)
+end
+
 struct SpinTensorStructureFactorRequest{Q,X,T,C,B,S,M} <: AbstractObservable
     qgrid::Q
     axis::X
@@ -139,6 +381,11 @@ function (request::LocalElectronSpectralFunctionRequest)(model::ManyBodyModel, s
     metadata = Dict{Symbol,Any}(
         :observable => :local_electron_spectral_function,
         :observable_request => :local_electron_spectral_function,
+        :response_kind => :spectral_function,
+        :frequency_domain => :real,
+        :statistics => :fermionic,
+        :momentum_scope => :local,
+        :response_order => 2,
         :spin => request.spin,
         :eta => request.eta,
         :normalization => request.normalization,
@@ -308,6 +555,11 @@ function _evaluate_phonon_structure_factor(request::PhononStructureFactorRequest
     metadata = Dict{Symbol,Any}(
         :observable => :phonon_structure_factor,
         :observable_request => :phonon_structure_factor,
+        :response_kind => :correlation_spectrum,
+        :frequency_domain => :real,
+        :statistics => :bosonic,
+        :momentum_scope => :momentum_resolved,
+        :response_order => 2,
         :temperature => request.temperature,
         :spectral_axis => request.convention.spectral_axis,
         :hbar => Float64(request.convention.hbar),

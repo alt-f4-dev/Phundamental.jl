@@ -326,6 +326,7 @@ function solve(solver::DMFTSolver, problem::DMFTProblem; initial_self_energy=not
 
     best = _dmft_best_history_point(history)
     metadata = Dict{Symbol,Any}(
+        :correlation_scope => :local,
         :method => :single_site_dmft,
         :normal_state => true,
         :single_orbital => true,

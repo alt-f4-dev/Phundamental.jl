@@ -25,6 +25,16 @@ function validate_observable_equivalence(A::LocalSpectrumResult, B::LocalSpectru
     return isapprox(A.intensity, B.intensity; atol=atol, rtol=rtol)
 end
 
+function validate_observable_equivalence(A::CompositeSpectrumResult, B::CompositeSpectrumResult; atol::Real=1e-10, rtol::Real=1e-8)
+    A.channels == B.channels || return false
+    length(A.axis) == length(B.axis) || return false
+    length(A.q) == length(B.q) || return false
+    all(isapprox(a, b; atol=atol, rtol=rtol) for (a, b) in zip(A.q, B.q)) || return false
+    all(isapprox(a, b; atol=atol, rtol=rtol) for (a, b) in zip(A.axis, B.axis)) || return false
+    size(A.intensity) == size(B.intensity) || return false
+    return isapprox(A.intensity, B.intensity; atol=atol, rtol=rtol)
+end
+
 """Trapezoidal integral along the spectral axis for each q value."""
 function integrated_spectral_weight(spectrum::SpectrumResult)
     x = spectrum.axis
@@ -67,6 +77,24 @@ function integrated_spectral_weight(spectrum::TensorSpectrumResult)
             total += 0.5 * (y[iq, j, α, β] + y[iq, j + 1, α, β]) * (x[j + 1] - x[j])
         end
         out[iq, α, β] = total
+    end
+
+    return out
+end
+
+function integrated_spectral_weight(spectrum::CompositeSpectrumResult)
+    x = spectrum.axis
+    y = spectrum.intensity
+    size(y, 3) == size(y, 4) == length(spectrum.channels) ||
+        throw(DimensionMismatch("composite spectrum channel dimensions must match its channel labels"))
+    out = zeros(ComplexF64, size(y, 1), size(y, 3), size(y, 4))
+
+    for iq in axes(y, 1), a in axes(y, 3), b in axes(y, 4)
+        total = 0.0 + 0im
+        @inbounds for j in 1:length(x)-1
+            total += 0.5 * (y[iq, j, a, b] + y[iq, j + 1, a, b]) * (x[j + 1] - x[j])
+        end
+        out[iq, a, b] = total
     end
 
     return out

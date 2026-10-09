@@ -135,6 +135,8 @@ result = forward(problem)
 println(result.observable_result)
 ```
 
+For generic scalar dynamical response, `DynamicalCorrelationRequest(field, qgrid, axis)` requests an autocorrelation and `DynamicalCorrelationRequest(field_a, field_b, qgrid, axis)` requests an ordered cross-correlation. These typed requests can be passed directly to the same forward pipeline.
+
 For scattering workflows, pass an observable request, probe, and resolution separately:
 
 ```julia

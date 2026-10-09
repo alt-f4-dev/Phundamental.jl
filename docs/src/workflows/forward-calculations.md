@@ -74,15 +74,23 @@ energy_request = ObservableRequest(:ground_energy, (working_model, solution) -> 
 
 The evaluator receives the post-transformation working model rather than the original source model. This is important for requests that resolve registered observables or construct momentum-space operators from the current representation.
 
-More sophisticated requests can capture grids, temperatures, line broadenings, normalization conventions, or other observable-specific configuration:
+More sophisticated requests should use a typed observable request when one is available. Generic scalar autocorrelations and cross-correlations use `DynamicalCorrelationRequest`:
 
 ```julia
-spin_spectrum = (working_model, solution) -> dynamic_structure_factor(working_model, solution, field, qgrid, axis; broadening=GaussianBroadening(0.05))
-
-spectrum_request = ObservableRequest(:spin_spectrum, spin_spectrum)
+autocorrelation_request = DynamicalCorrelationRequest(field, qgrid, axis; broadening=GaussianBroadening(0.05))
+cross_correlation_request = DynamicalCorrelationRequest(field_a, field_b, qgrid, axis; broadening=GaussianBroadening(0.05))
 ```
 
-The exact argument list for a specialized observable should follow the corresponding [Observables](../modules/observables.md) API; `ObservableRequest` itself only standardizes how the request enters the forward pipeline.
+The one-field constructor represents $S_{AA}$ without requiring the same field twice. The two-field constructor preserves the ordered $S_{AB}$ definition and is the generic high-level entry point for coupled scalar response. `ObservableRequest` remains available for custom observables that do not yet have a dedicated typed request.
+
+For more than two physical channels, `CompositeDynamicalCorrelationRequest` evaluates the complete ordered matrix in one calculation request:
+
+```julia
+fields = (spin_z=spin_z_field, displacement=displacement_field, density=density_field)
+request = CompositeDynamicalCorrelationRequest(fields, qgrid, axis; broadening=GaussianBroadening(0.05))
+```
+
+The request is sector-agnostic: the labels only identify the rows and columns of the response matrix, while the fields determine the actual registered operators. `SpinPhononCorrelationRequest` is the corresponding high-level physical wrapper for the standard spin and displacement observable families registered by spin-boson and compatible hybrid models.
 
 ## Add a probe only when appropriate
 
@@ -147,7 +155,17 @@ if supports(result.solution, :energies)
 end
 ```
 
-The capability protocol lets new solver/result types participate in generic workflows if they expose compatible structure.
+The capability protocol lets new solver/result types participate in generic workflows if they expose compatible structure. Dynamical outputs additionally expose semantic capabilities:
+
+```julia
+kind = response_kind(result.observable_result)
+domain = frequency_domain(result.observable_result)
+stats = response_statistics(result.observable_result)
+scope = momentum_scope(result.observable_result)
+channels = operator_channels(result.observable_result)
+```
+
+`response_convention` collects these inferred semantics together with declared spectral-axis, normalization, operator-order, temperature, and channel metadata. Matsubara Green functions and susceptibilities report `requires_analytic_continuation(result) == true`; a real-frequency observable must therefore be obtained through an explicit continuation route before applying the causal-response conversion helpers.
 
 ## Reproducibility checklist
 

@@ -126,3 +126,19 @@ Phundamental.ForwardProblem
 Phundamental.ForwardResult
 Phundamental.forward
 ```
+
+## Correlation-scale organization
+
+The development API classifies correlation methods by the spatial information they add while retaining the existing module ownership. Single-site DMFT is the local-correlation method, ED/Lanczos with CPT or NLCE supplies short/intermediate spatial correlations, and diagrammatic DMFT supplies a route to nonlocal and critical correlations through two-particle vertex propagation. This classification is metadata and documentation, not an inheritance hierarchy, because the physical regimes overlap.
+
+$$\text{local: DMFT}\qquad\text{short/intermediate: ED/Lanczos + CPT + NLCE}\qquad\text{long-range/critical: diagrammatic DMFT}$$
+
+The observable layer remains method-independent. A susceptibility, spectral function, or structure factor retains provenance identifying the producing method, but probe and resolution code should consume the physical observable rather than dispatch on the correlation-scale method.
+
+`correlation_scope(result)` reports the declared scope when result metadata supplies one. Current development results use `:local`, `:short_intermediate_spatial`, and `:long_range_critical`; results without an explicit declaration return `:unspecified`.
+
+## Research-grade correlation-method validation
+
+The three correlation-scale branches use different validation hierarchies. NLCE requires exact graph/isomorphism checks, independent embedding-size stability, bare-order convergence, optional resummation diagnostics, and reproduction of published cluster-count or thermodynamic-limit benchmarks. Diagrammatic DMFT requires a converged local DMFT reference, exact Bethe-Salpeter closure on controlled test tensors, explicit inversion conditioning, frequency-box and momentum-grid convergence, and comparison with independent published Hubbard-model benchmarks where numerical reference data are available.
+
+Software tests and documentation builds establish API consistency but are not by themselves evidence of physical accuracy. Benchmark provenance, normalization conventions, model parameters, and numerical cutoffs must remain attached to every research validation result.

@@ -171,3 +171,54 @@ validate_linked_cluster_closure
 ## Additional exported thermodynamic API
 
 The remaining public functions are `partition_function`, `log_partition_function`, `free_energy`, `internal_energy`, `entropy`, `heat_capacity`, `cluster_order`, `cluster_sites`, and `cluster_bonds`, together with the abstract method/state types used for extension.
+
+## Numerical linked-cluster expansion
+
+The development API generalizes the finite-reference linked-cluster engine through `NLCEProblem`, `NLCESolver`, and `NLCEResult`. The evaluator supplied to `NLCEProblem` may return a scalar or array-valued cluster quantity, so the same inclusion-exclusion machinery can be reused for thermodynamic observables, equal-time correlators, dynamical correlators, and other cluster quantities without replacing the existing `cluster_thermodynamics` API.
+
+`FiniteReferenceExpansion` preserves the established embedded-cluster interpretation. `TopologicalClusterClass` and `TopologicalExpansion` provide the bookkeeping required for a genuine thermodynamic-limit NLCE when cluster equivalence classes, embeddings per lattice site, and connected-subcluster multiplicities are known. `topological_nlce` performs the corresponding weighted inclusion-exclusion reconstruction.
+
+The finite-reference and topological APIs are deliberately separate. A finite reference result retains `:infinite_lattice_claim => false`, whereas a topological expansion only claims the thermodynamic-limit bookkeeping supplied by its explicit multiplicities.
+
+```@docs
+AbstractClusterExpansion
+FiniteReferenceExpansion
+TopologicalClusterClass
+TopologicalExpansion
+NLCEProblem
+NLCESolver
+NLCEResult
+linked_cluster_values
+topological_nlce
+expectation_nlce_problem
+nlce_convergence
+validate_nlce_result
+```
+
+## Automatic site-based NLCE and peer-reviewed validation
+
+`site_nlce_expansion` converts connected embedded site clusters into exact colored-graph isomorphism classes, derives proper connected-subcluster multiplicities from representative graphs, and estimates lattice constants from embeddings per reference site. The finite periodic reference is treated as an embedding enumerator rather than as a physical finite-size approximation. The expansion does not silently claim the thermodynamic limit: `:infinite_lattice_claim` remains false unless embedding completeness is explicitly asserted, and `validate_embedding_stability` compares independent reference sizes before such an assertion is justified.
+
+The automatic square-lattice site expansion is benchmarked against Table II of M. Rigol, T. Bryant, and R. R. P. Singh, *Phys. Rev. E* **75**, 061118 (2007), DOI `10.1103/PhysRevE.75.061118`. `rigol_2007_square_site_counts` stores the published topological-cluster counts and sums of lattice constants through order 16, while `validate_rigol_2007_square_site_counts` compares an automatically generated expansion directly against those values.
+
+`WynnEpsilon` provides sequence acceleration without replacing the bare partial sums. The returned `NLCEResummationResult` retains the complete acceleration history and reports the number of completed cycles, so an extrapolated value can be audited separately from bare order convergence.
+
+```@docs
+NLCEClusterGraph
+topological_expansion
+site_nlce_expansion
+TopologicalNLCEProblem
+validate_embedding_stability
+AbstractNLCEResummation
+BareNLCE
+WynnEpsilon
+NLCEResummationResult
+resum_nlce
+nlce_sequence_residual
+LiteratureBenchmark
+LiteratureBenchmarkResult
+compare_literature_benchmark
+rigol_2007_square_site_counts
+summarize_topological_expansion
+validate_rigol_2007_square_site_counts
+```

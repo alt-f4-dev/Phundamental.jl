@@ -496,6 +496,12 @@ function spin_tensor_structure_factor(
 
     metadata = Dict{Symbol,Any}(
         :observable => :spin_tensor_dynamic_structure_factor,
+        :response_kind => :correlation_spectrum,
+        :frequency_domain => :real,
+        :statistics => :bosonic,
+        :momentum_scope => :momentum_resolved,
+        :response_order => 2,
+        :operator_channels => (:x, :y, :z),
         :components => (:x, :y, :z),
         :temperature => float(temperature),
         :fourier_normalization => normalization,

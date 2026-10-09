@@ -14,6 +14,11 @@ function spectral_density(model::ManyBodyModel, result::SolverResult, A, B, axis
     values = broaden_lines(lines, x, broadening)
     metadata = copy(lines.metadata)
     metadata[:observable] = :spectral_density
+    metadata[:response_kind] = :spectral_density
+    metadata[:frequency_domain] = :real
+    metadata[:statistics] = :unspecified
+    metadata[:momentum_scope] = :local
+    metadata[:response_order] = 2
     metadata[:broadening] = broadening
     metadata[:broadening_role] = :intrinsic_numerical_line_shape
     metadata[:resolution_applied] = false
@@ -30,6 +35,11 @@ function spectral_density(model::ManyBodyModel, result::QuadraticModeResult, A, 
     values = broaden_lines(lines, x, broadening)
     metadata = copy(lines.metadata)
     metadata[:observable] = :spectral_density
+    metadata[:response_kind] = :spectral_density
+    metadata[:frequency_domain] = :real
+    metadata[:statistics] = :unspecified
+    metadata[:momentum_scope] = :local
+    metadata[:response_order] = 2
     metadata[:broadening] = broadening
     metadata[:broadening_role] = :intrinsic_numerical_line_shape
     metadata[:resolution_applied] = false

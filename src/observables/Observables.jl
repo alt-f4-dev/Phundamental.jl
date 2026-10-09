@@ -7,10 +7,12 @@ using ..Solvers
 include("ObservableTypes.jl")
 include("CorrelationFunctions.jl")
 include("DynamicStructureFactor.jl")
+include("CompositeResponses.jl")
 include("ForwardRequests.jl")
 include("StaticStructureFactor.jl")
 include("SpectralFunctions.jl")
 include("ElectronSpectra.jl")
+include("ResponseConversions.jl")
 include("Scattering.jl")
 include("HarmonicMultiphonon.jl")
 include("Resolution.jl")
@@ -26,6 +28,9 @@ export AbstractObservable,
        NumberConservingZeroModeProjection,
        ObservableRef,
        ObservableRequest,
+       DynamicalCorrelationRequest,
+       CompositeDynamicalCorrelationRequest,
+       SpinPhononCorrelationRequest,
        SpinTensorStructureFactorRequest,
        SpectrumConvention,
        MomentumField,
@@ -34,9 +39,12 @@ export AbstractObservable,
        SpectrumResult,
        StaticStructureFactorResult,
        TensorSpectrumResult,
+       CompositeSpectrumResult,
        CorrelationResult,
+       SusceptibilityResult,
        ScatteringResult,
        resolve_observable,
+       registered_momentum_field,
        register_observable,
        register_spin_tensor,
        momentum_operator,
@@ -48,10 +56,16 @@ export AbstractObservable,
        GaussianBroadening,
        lehmann_lines,
        broaden_lines,
+       dynamical_correlation,
+       composite_dynamical_correlation,
+       spin_phonon_dynamical_correlation,
        dynamic_structure_factor,
        spin_tensor_structure_factor,
        static_structure_factor,
        spectral_density,
+       spectral_function_from_retarded_green,
+       commutator_spectral_density,
+       correlation_spectrum_from_retarded_susceptibility,
        cluster_perturbation_spectral_function,
        detailed_balance_residual,
        MagneticNeutronProbe,

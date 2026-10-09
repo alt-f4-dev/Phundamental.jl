@@ -8,6 +8,7 @@ using Printf
 
 using ..PhundamentalCore
 using ..Solvers
+import ..Solvers: solve, solver_name
 using ..Models
 using ..Observables: ObservableRef, resolve_observable
 
@@ -23,6 +24,7 @@ include("ClusterTypes.jl")
 include("ClusterGeneration.jl")
 include("LinkedCluster.jl")
 include("ClusterSampling.jl")
+include("nlce/NLCE.jl")
 include("Validation.jl")
 
 export AbstractThermalMethod,
@@ -60,6 +62,35 @@ export AbstractThermalMethod,
        linked_cluster_weights,
        ClusterThermodynamicsResult,
        cluster_thermodynamics,
+       AbstractClusterExpansion,
+       FiniteReferenceExpansion,
+       TopologicalClusterClass,
+       TopologicalExpansion,
+       NLCEProblem,
+       NLCESolver,
+       NLCEResult,
+       linked_cluster_values,
+       topological_nlce,
+       expectation_nlce_problem,
+       nlce_convergence,
+       validate_nlce_result,
+       NLCEClusterGraph,
+       topological_expansion,
+       site_nlce_expansion,
+       TopologicalNLCEProblem,
+       validate_embedding_stability,
+       AbstractNLCEResummation,
+       BareNLCE,
+       WynnEpsilon,
+       NLCEResummationResult,
+       resum_nlce,
+       nlce_sequence_residual,
+       LiteratureBenchmark,
+       LiteratureBenchmarkResult,
+       compare_literature_benchmark,
+       rigol_2007_square_site_counts,
+       summarize_topological_expansion,
+       validate_rigol_2007_square_site_counts,
        bulk_estimate,
        validate_thermal_state,
        validate_sampling_against_exact,

@@ -82,7 +82,7 @@ $$\mathfrak R=(\mathcal S,\mathcal S_{\mathrm{phys}},\mathcal A,\mathcal B,\math
 `GaugeStructure` records gauge redundancy introduced by enlarged representations. This information is used by transformation certificates to distinguish an exact algebraic embedding from a one-to-one unitary change of basis.
 
 !!! note
-    Nambu indexing is not represented by `Representation`. In v0.0.7 it is an index structure on Green functions and is documented in [Greens](greens.md).
+    Nambu indexing is not represented by `Representation`. In v0.0.8 it is an index structure on Green functions and is documented in [Greens](greens.md).
 
 ## Reciprocal-space primitives
 

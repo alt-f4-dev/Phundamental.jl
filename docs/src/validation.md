@@ -1,6 +1,6 @@
 # Validation
 
-Phundamental v0.0.7 treats validation as a hierarchy rather than a single test-suite result: symbolic invariants are checked first, numerical realizations are compared against independent reference paths, truncations and finite-size approximations are tested for convergence, and selected physical calculations are compared with analytic limits or published benchmarks.
+Phundamental v0.0.8 treats validation as a hierarchy rather than a single test-suite result: symbolic invariants are checked first, numerical realizations are compared against independent reference paths, truncations and finite-size approximations are tested for convergence, and selected physical calculations are compared with analytic limits or published benchmarks.
 
 ## Validation hierarchy
 
@@ -13,9 +13,9 @@ The validation strategy proceeds from the most implementation-local checks to th
 5. **Published physical benchmarks.** Selected model, solver, observable, and embedding workflows are compared with analytic formulas or published calculations without treating values digitized from plots as exact targets.
 6. **Performance validation.** An optimized path is accepted only after agreement with an independent numerical reference has been established; speedup is not used as evidence of correctness.
 
-## v0.0.7 regression gate
+## v0.0.8 regression gate
 
-The frozen v0.0.7 development state reported **864 passing regression tests with no failures or errors**. The regression suite spans the generalized API, crystallographic invariant generation, transformation numerics, finite-temperature Green functions, ED-DMFT, optimized fermionic impurity sectors, particle-hole-constrained bath fitting, thermodynamics, observables, and bosonic truncation convergence.
+The tagged v0.0.8 regression gate reports **1579 passing regression assertions with no failures or errors**. The regression suite spans the generalized API, crystallographic invariant generation, generic and composite dynamical responses, response semantics and conversions, request/solver compatibility, high-level DMFT/DΓA/NLCE integration, policy-governed forward planning, transformation numerics, finite-temperature Green functions, ED-DMFT, optimized fermionic impurity sectors, particle-hole-constrained bath fitting, thermodynamics, observables, and bosonic truncation convergence.
 
 Run the complete regression gate from the repository root with:
 
@@ -43,7 +43,7 @@ The important interpretation is that a numerical cutoff is a property of the rea
 
 Optimized exact backends are validated against the generic reference machinery before they are used for scaling studies. The solver tests cover packed spin and fermion bases, rank lookup, spin-sector decomposition, optimized-versus-generic matrix realization, and Krylov interfaces.
 
-The v0.0.7 Anderson impurity implementation retains both a dense ED reference and a spin-resolved sectorized backend. The sectorized backend decomposes the normal single-orbital impurity problem by conserved $(N_\uparrow,N_\downarrow)$ sectors and compares spectra, finite-temperature observables, $G(i\omega_n)$, and $\Sigma(i\omega_n)$ against the dense reference on systems where both are practical.
+The v0.0.8 Anderson impurity implementation retains both a dense ED reference and a spin-resolved sectorized backend. The sectorized backend decomposes the normal single-orbital impurity problem by conserved $(N_\uparrow,N_\downarrow)$ sectors and compares spectra, finite-temperature observables, $G(i\omega_n)$, and $\Sigma(i\omega_n)$ against the dense reference on systems where both are practical.
 
 Threaded impurity ED is separately compared with the serial sectorized path. With BLAS restricted to one thread, the frozen scaling data show that explicit Julia threading becomes useful once the impurity sectors are nontrivial; for example, the $N_b=4$ sectorized impurity solve decreased from approximately $0.2065$ s to $0.0357$ s on the recorded 32-thread run, a speedup of approximately $5.79\times$. The corresponding $N_b=4$ complete DMFT-driver timing decreased from approximately $0.509$ s to $0.110$ s, or approximately $4.62\times$.
 
@@ -77,13 +77,13 @@ The atomic Hubbard test is particularly useful because both $G(i\omega_n)$ and $
 
 ## ED-DMFT validation
 
-The v0.0.7 embedding milestone is normal-state, single-site, single-orbital ED-DMFT. Its validation campaign combines exact limiting cases, finite-bath diagnostics, independent impurity backends, deterministic convergence histories, an independent closure solve, particle-hole-constrained bath fitting at half filling, and published finite-temperature ED-DMFT references.
+The v0.0.8 embedding milestone is normal-state, single-site, single-orbital ED-DMFT. Its validation campaign combines exact limiting cases, finite-bath diagnostics, independent impurity backends, deterministic convergence histories, an independent closure solve, particle-hole-constrained bath fitting at half filling, and published finite-temperature ED-DMFT references.
 
 The fixed-point driver distinguishes the iteration residual from the independent closure residual. Crossing the iteration tolerance triggers closure verification at the same accepted self-energy; if closure does not yet pass and iteration budget remains, the trajectory continues and closure is retried. Exhausted trajectories are classified separately from converged trajectories, and the complete iteration history retains self-energy, Weiss, hybridization, bath-fit, and mixing diagnostics.
 
 ### Half-filled Bethe physical-regime sweep
 
-The frozen physical-regime benchmark uses $\beta=32$, half bandwidth $D=\sqrt{2}$, 128 positive Matsubara frequencies, adaptive linear mixing, particle-hole-symmetric bath fitting, and a closure tolerance of $10^{-7}$. Every reported v0.0.7 point converges.
+The frozen physical-regime benchmark uses $\beta=32$, half bandwidth $D=\sqrt{2}$, 128 positive Matsubara frequencies, adaptive linear mixing, particle-hole-symmetric bath fitting, and a closure tolerance of $10^{-7}$. Every reported v0.0.8 point converges.
 
 | $U$ | $N_b$ | Closure residual | Bath residual | $\Delta\Sigma_{N_b}$ | $Z_{\mathrm{est}}$ | Density | Iterations |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -112,7 +112,7 @@ The script writes summary, per-iteration, and Matsubara-resolved CSV files under
 
 The published ED-DMFT benchmark follows M. Caffarel and W. Krauth, *Physical Review Letters* **72**, 1545--1548 (1994), DOI: [10.1103/PhysRevLett.72.1545](https://doi.org/10.1103/PhysRevLett.72.1545), with the general DMFT framework cross-checked against A. Georges *et al.*, *Reviews of Modern Physics* **68**, 13--125 (1996), DOI: [10.1103/RevModPhys.68.13](https://doi.org/10.1103/RevModPhys.68.13), and finite-temperature bath-size practice compared with A. Liebsch and H. Ishida, *Journal of Physics: Condensed Matter* **24**, 053201 (2012), DOI: [10.1088/0953-8984/24/5/053201](https://doi.org/10.1088/0953-8984/24/5/053201).
 
-For $\beta=32$, $U=3$, $\mu=1.5$, $D=\sqrt{2}$, and 128 positive Matsubara frequencies, both finite baths converge under the v0.0.7 particle-hole constraint:
+For $\beta=32$, $U=3$, $\mu=1.5$, $D=\sqrt{2}$, and 128 positive Matsubara frequencies, both finite baths converge under the v0.0.8 particle-hole constraint:
 
 | $n_s$ | $N_b$ | $\chi^2$ | Bath residual | Closure residual | $Z_{\mathrm{est}}$ | Density | Iterations |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -127,7 +127,7 @@ Run it with:
 OPENBLAS_NUM_THREADS=1 julia -t auto --project=. benchmarks/dmft/caffarel-krauth-1994-benchmark.jl
 ```
 
-Liebsch and Ishida also use comparison with continuous-time quantum Monte Carlo as an independent-solver accuracy criterion. Phundamental v0.0.7 does not contain a CT-QMC impurity solver, so that comparison remains an external validation target rather than being replaced by a weaker internal check.
+Liebsch and Ishida also use comparison with continuous-time quantum Monte Carlo as an independent-solver accuracy criterion. Phundamental v0.0.8 does not contain a CT-QMC impurity solver, so that comparison remains an external validation target rather than being replaced by a weaker internal check.
 
 ## Additional empirical benchmark inventory
 
@@ -135,11 +135,11 @@ The repository contains larger empirical and literature-oriented scripts in `ben
 
 The Hubbard cluster-perturbation benchmark follows D. Sénéchal, D. Perez, and D. Plouffe, *Physical Review Letters* **84**, 522--525 (2000), DOI: [10.1103/PhysRevLett.84.522](https://doi.org/10.1103/PhysRevLett.84.522), and specifically exercises sector-changing fermionic Green functions and CPT reconstruction. These larger scripts are useful release-level physics checks but should not be confused with the fast deterministic unit-test gate.
 
-## Scope of the v0.0.7 claims
+## Scope of the v0.0.8 claims
 
 The validation documented here supports the APIs and physical regimes actually exercised by the frozen source tree. It does not imply that every mathematically representable Hamiltonian, every truncation, or every thermodynamic regime has been benchmarked against independent experimental data.
 
-In particular, the current ED-DMFT validation does **not** establish superconducting/Nambu impurity self-consistency, multi-orbital DMFT, cluster DMFT, a continuum-bath limit, analytic continuation, or CT-QMC agreement. Nambu Green-function structures exist in `Greens`, but the validated v0.0.7 DMFT closure is normal-state and scalar in the correlated orbital.
+In particular, the current ED-DMFT validation does **not** establish superconducting/Nambu impurity self-consistency, multi-orbital DMFT, cluster DMFT, a continuum-bath limit, analytic continuation, or CT-QMC agreement. Nambu Green-function structures exist in `Greens`, but the validated v0.0.8 DMFT closure is normal-state and scalar in the correlated orbital.
 
 Likewise, an optimized backend being available does not imply that every source representation can be realized without a numerical cutoff. Use `numerical_capabilities`, transformation certificates, truncation diagnostics, and the module-specific validation helpers to determine which claims apply to a particular calculation.
 
@@ -147,4 +147,4 @@ Likewise, an optimized backend being available does not imply that every source 
 
 For deterministic numerical comparisons, record the Julia version, thread count, BLAS thread count, solver backend, truncation or bath size, convergence tolerances, random seed for stochastic methods, and any environment variables used by a benchmark. The DMFT performance scripts explicitly recommend `OPENBLAS_NUM_THREADS=1` when measuring Julia-thread scaling so that nested BLAS threading does not obscure the source of speedup.
 
-The documentation records the v0.0.7 reference behavior, while CSV outputs under `benchmarks/` remain the machine-readable source for detailed benchmark trajectories and frequency-resolved data.
+The documentation records the v0.0.8 reference behavior, while CSV outputs under `benchmarks/` remain the machine-readable source for detailed benchmark trajectories and frequency-resolved data.

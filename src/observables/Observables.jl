@@ -9,6 +9,7 @@ include("CorrelationFunctions.jl")
 include("DynamicStructureFactor.jl")
 include("CompositeResponses.jl")
 include("ForwardRequests.jl")
+include("RequestRequirements.jl")
 include("StaticStructureFactor.jl")
 include("SpectralFunctions.jl")
 include("ElectronSpectra.jl")
@@ -32,6 +33,12 @@ export AbstractObservable,
        CompositeDynamicalCorrelationRequest,
        SpinPhononCorrelationRequest,
        SpinTensorStructureFactorRequest,
+       LocalMatsubaraGreenFunctionRequest,
+       LocalMatsubaraSelfEnergyRequest,
+       MatsubaraSusceptibilityRequest,
+       RequestRequirements,
+       request_requirements,
+       is_dynamical_request,
        SpectrumConvention,
        MomentumField,
        SpinTensorField,

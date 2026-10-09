@@ -1,6 +1,6 @@
 # Phundamental.jl documentation maintenance
 
-The documentation is built with Documenter.jl from the frozen v0.0.7 source tree. The documentation environment contains Documenter and the package's external `Spglib` dependency; `docs/make.jl` loads `src/Phundamental.jl` directly so the build does not require the repository root to be a registered Julia package project.
+The documentation is built with Documenter.jl from the frozen v0.0.8 source tree. The documentation environment contains Documenter and the package's external `Spglib` dependency; `docs/make.jl` loads `src/Phundamental.jl` directly so the build does not require the repository root to be a registered Julia package project.
 
 ## Local build
 
@@ -23,6 +23,6 @@ The supplied workflow assumes that the development branch is `main`. If the repo
 
 Each public submodule has one conceptual reference page. Manual prose explains mathematical meaning, conventions, invariants, numerical assumptions, and workflows; curated `@docs` blocks expose the most important inline API docstrings. Expensive scientific calculations remain in the validation and benchmark scripts rather than executing during every documentation build.
 
-The current build uses `checkdocs=:none` because v0.0.7 contains exported symbols whose behavior is documented in the manual but which do not all have normalized inline docstrings. Once source-level docstring coverage has been audited and normalized, change this to `checkdocs=:exports` and keep the documentation build strict.
+The current build uses `checkdocs=:none` because v0.0.8 contains exported symbols whose behavior is documented in the manual but which do not all have normalized inline docstrings. Once source-level docstring coverage has been audited and normalized, change this to `checkdocs=:exports` and keep the documentation build strict.
 
 Generated `docs/build/` content must not be committed to the development branch. The generated site belongs on `gh-pages` and is managed by Documenter deployment.

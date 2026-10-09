@@ -46,7 +46,7 @@ For finite-temperature calculations whose natural object is an imaginary-frequen
 
 `LehmannLines` stores discrete transition centers and weights before numerical line broadening. This intermediate representation is useful for exact finite systems because it preserves the delta-function spectrum independently of how the spectrum is later plotted.
 
-`lehmann_lines` computes the transitions. `AbstractBroadening` is the base for numerical line-shape models; v0.0.7 includes `LorentzianBroadening` and `GaussianBroadening`. `broaden_lines` evaluates the broadened spectrum on a requested axis.
+`lehmann_lines` computes the transitions. `AbstractBroadening` is the base for numerical line-shape models; v0.0.8 includes `LorentzianBroadening` and `GaussianBroadening`. `broaden_lines` evaluates the broadened spectrum on a requested axis.
 
 Broadening here is a representation of discrete intrinsic spectral lines. It is not automatically interpreted as experimental resolution.
 
@@ -67,6 +67,14 @@ Broadening here is a representation of discrete intrinsic spectral lines. It is 
 `SpectrumResult` stores scalar spectra, `TensorSpectrumResult` stores Cartesian tensor spectra, and `CompositeSpectrumResult` stores arbitrary labeled response matrices indexed by momentum, spectral point, row channel, and column channel. Metadata records conventions, broadening, temperature, operator ordering, and related calculation choices.
 
 `detailed_balance_residual` measures the violation of the expected finite-temperature detailed-balance relation and is an important validation diagnostic.
+
+## Request requirements
+
+`RequestRequirements` is the solver-independent declaration of what a typed observable request asks the forward pipeline to produce. `request_requirements(request)` records the response kind, frequency domain, exchange statistics when known, momentum scope, response order, operator channels, temperature, and request metadata. `is_dynamical_request` reports whether the request explicitly targets a time- or frequency-dependent response.
+
+Request requirements are intentionally distinct from the result-capability protocol below. Requirements describe the desired physical output before a solver runs; result capabilities describe the semantics of an object that has already been produced. Solver compatibility compares the former with the numerical route without redefining physical Hamiltonian admissibility.
+
+Batch 5 adds three typed Matsubara-domain requests for the embedding routes. `LocalMatsubaraGreenFunctionRequest` selects the local fermionic Green function from a single-site DMFT result, `LocalMatsubaraSelfEnergyRequest` selects its local self-energy, and `MatsubaraSusceptibilityRequest(:charge|:magnetic)` selects one bosonic susceptibility channel from ladder DΓA. Their requirements explicitly remain `frequency_domain=:matsubara`; none of these requests performs analytic continuation.
 
 ## Common dynamical-response capabilities
 
@@ -94,7 +102,7 @@ Static structure factors can also be computed from classical configuration ensem
 
 `spectral_density` computes a single-particle spectral density from the relevant fermionic solver result. `cluster_perturbation_spectral_function` evaluates the spectral function associated with the cluster-perturbation Green function produced by [Solvers](solvers.md).
 
-The zero-temperature CPT Green-function workflow in Solvers and the finite-temperature Matsubara Green-function objects in [Greens](greens.md) are separate abstractions. Conversion to a real-frequency spectral function requires an appropriate real-frequency or continuation strategy; v0.0.7 does not silently analytically continue Matsubara data.
+The zero-temperature CPT Green-function workflow in Solvers and the finite-temperature Matsubara Green-function objects in [Greens](greens.md) are separate abstractions. Conversion to a real-frequency spectral function requires an appropriate real-frequency or continuation strategy; v0.0.8 does not silently analytically continue Matsubara data.
 
 ## Magnetic neutron scattering
 
@@ -189,6 +197,12 @@ ObservableRequest
 DynamicalCorrelationRequest
 CompositeDynamicalCorrelationRequest
 SpinPhononCorrelationRequest
+LocalMatsubaraGreenFunctionRequest
+LocalMatsubaraSelfEnergyRequest
+MatsubaraSusceptibilityRequest
+RequestRequirements
+request_requirements
+is_dynamical_request
 ```
 
 ### Correlations and spectra

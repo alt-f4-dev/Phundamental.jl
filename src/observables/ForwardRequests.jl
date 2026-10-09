@@ -401,6 +401,72 @@ function (request::LocalElectronSpectralFunctionRequest)(model::ManyBodyModel, s
 end
 
 
+"""
+    LocalMatsubaraGreenFunctionRequest(; metadata=Dict())
+
+Request the local fermionic Matsubara Green function produced by an embedding calculation. The request never performs analytic continuation; a real-frequency spectral function remains a separate explicit operation.
+"""
+struct LocalMatsubaraGreenFunctionRequest{M} <: AbstractObservable
+    metadata::M
+end
+
+LocalMatsubaraGreenFunctionRequest(; metadata=Dict{Symbol,Any}()) = LocalMatsubaraGreenFunctionRequest(Dict{Symbol,Any}(metadata))
+
+function (request::LocalMatsubaraGreenFunctionRequest)(::ManyBodyModel, solution)
+    hasproperty(solution, :local_green_function) || throw(ArgumentError("LocalMatsubaraGreenFunctionRequest requires a solution with a local_green_function field"))
+    return getproperty(solution, :local_green_function)
+end
+
+"""
+    LocalMatsubaraSelfEnergyRequest(; metadata=Dict())
+
+Request the local fermionic Matsubara self-energy produced by an embedding calculation. The request returns the solver-native Matsubara object and does not infer a real-frequency self-energy.
+"""
+struct LocalMatsubaraSelfEnergyRequest{M} <: AbstractObservable
+    metadata::M
+end
+
+LocalMatsubaraSelfEnergyRequest(; metadata=Dict{Symbol,Any}()) = LocalMatsubaraSelfEnergyRequest(Dict{Symbol,Any}(metadata))
+
+function (request::LocalMatsubaraSelfEnergyRequest)(::ManyBodyModel, solution)
+    hasproperty(solution, :self_energy) || throw(ArgumentError("LocalMatsubaraSelfEnergyRequest requires a solution with a self_energy field"))
+    value = getproperty(solution, :self_energy)
+    isnothing(value) && throw(ArgumentError("the selected embedding calculation did not reconstruct a self-energy"))
+    return value
+end
+
+"""
+    MatsubaraSusceptibilityRequest(channel=:magnetic; metadata=Dict())
+
+Request one bosonic Matsubara susceptibility channel from a diagrammatic embedding calculation. Supported high-level ladder-DΓA channels are `:charge` and `:magnetic`. The request is intentionally Matsubara-domain only and never performs analytic continuation.
+"""
+struct MatsubaraSusceptibilityRequest{M} <: AbstractObservable
+    channel::Symbol
+    metadata::M
+end
+
+function MatsubaraSusceptibilityRequest(channel::Symbol=:magnetic; metadata=Dict{Symbol,Any}())
+    channel in (:charge, :magnetic) || throw(ArgumentError("channel must be :charge or :magnetic"))
+    return MatsubaraSusceptibilityRequest(channel, Dict{Symbol,Any}(metadata))
+end
+
+function (request::MatsubaraSusceptibilityRequest)(::ManyBodyModel, solution)
+    if hasproperty(solution, :observables)
+        observables = getproperty(solution, :observables)
+        observables isa AbstractDict || throw(ArgumentError("solution.observables must be a dictionary-like channel registry"))
+        haskey(observables, request.channel) || throw(ArgumentError("requested susceptibility channel $(request.channel) is unavailable"))
+        return observables[request.channel]
+    elseif hasproperty(solution, :observable)
+        observable = getproperty(solution, :observable)
+        hasproperty(observable, :metadata) || throw(ArgumentError("diagrammatic observable does not expose channel metadata"))
+        channel = get(getproperty(observable, :metadata), :channel, nothing)
+        channel === request.channel || throw(ArgumentError("diagrammatic result contains channel $(channel), not $(request.channel)"))
+        return observable
+    end
+    throw(ArgumentError("MatsubaraSusceptibilityRequest requires a diagrammatic solution exposing susceptibility channels"))
+end
+
+
 """Intrinsic basis-resolved harmonic displacement structure factor with values indexed `(iQ, ix, a, b)`, where `a` and `b` label primitive-cell displacement degrees of freedom. Coherent nuclear scattering lengths, the neutron `Q` projection, and instrument resolution are not applied."""
 struct PhononStructureFactorResult{M,Q,X,V,D}
     model::M

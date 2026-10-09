@@ -1,12 +1,12 @@
 # Phundamental.jl
 
-[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://alt-f4-dev.github.io/Phundamental.jl/stable/) [![Documentation Build](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml/badge.svg)](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml) [![Julia](https://img.shields.io/badge/Julia-1.12%2B-9558B2.svg)](https://julialang.org/) [![Version](https://img.shields.io/badge/version-v0.0.7-informational.svg)](https://github.com/alt-f4-dev/Phundamental.jl/tree/v0.0.7)
+[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://alt-f4-dev.github.io/Phundamental.jl/stable/) [![Documentation Build](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml/badge.svg)](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml) [![Julia](https://img.shields.io/badge/Julia-1.12%2B-9558B2.svg)](https://julialang.org/) [![Version](https://img.shields.io/badge/version-v0.0.8-informational.svg)](https://github.com/alt-f4-dev/Phundamental.jl/tree/v0.0.8)
 
 `Phundamental.jl` is a representation-aware Julia framework for constructing, transforming, solving, and analyzing quantum many-body models. The design philosophy is to maintain a strict boundary between the physical model, mathematical representation, numerical approximation, solver backend, observable definition, probe response, and instrument response, keeping each of these concepts explicitly separated.
 
 The package supports symbolic many-body operator algebra, representation transformations, crystallographic invariant generation, finite-cluster and specialized numerical solvers, scattering observables, equilibrium thermodynamics, finite-temperature Green functions, and finite-bath embedding workflows including normal-state single-site exact-diagonalization dynamical mean-field theory (ED-DMFT).
 
-The current stable release is `v0.0.7`.
+The current stable release is `v0.0.8`.
 
 ## Documentation
 
@@ -21,11 +21,11 @@ The complete documentation is the primary reference for the public API, mathemat
 
 ## Installation
 
-`Phundamental.jl` is currently installed directly from GitHub. To install the stable `v0.0.7` release:
+`Phundamental.jl` is currently installed directly from GitHub. To install the stable `v0.0.8` release:
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/alt-f4-dev/Phundamental.jl", rev="v0.0.7")
+Pkg.add(url="https://github.com/alt-f4-dev/Phundamental.jl", rev="v0.0.8")
 ```
 
 Then load the package normally:
@@ -124,6 +124,16 @@ solution = solve(AutoSolver(), model)
 
 `AutoSolver` may select an exact optimized backend when the model structure permits it, but it does not silently select a physical approximation such as linear spin-wave theory.
 
+## Canonical high-level forward demo
+
+The stable `v0.0.8` release includes [`demos/high-level-forward-api.jl`](demos/high-level-forward-api.jl), a compact end-to-end example of the public forward architecture. It constructs a physical spin model, defines a typed scattering request, lets `plan_forward` choose a policy-permitted exact route, inspects the resulting planning report, executes the calculation, and retains the intrinsic response, probe-contracted response, and resolution-convolved result as separate stages.
+
+Run it from the repository root with:
+
+```bash
+julia --project=. demos/high-level-forward-api.jl
+```
+
 ## Package organization
 
 | Module | Role |
@@ -185,11 +195,11 @@ The embedding layer provides finite discrete Anderson baths, constrained and unc
 
 ### Forward calculations
 
-`ForwardProblem`, `forward`, and `ForwardResult` coordinate model transformation, solution, observable evaluation, probe response, and resolution while retaining every intermediate stage.
+`ForwardProblem`, `forward`, and `ForwardResult` coordinate model transformation, solution, observable evaluation, probe response, and resolution while retaining every intermediate stage. Typed requests additionally expose solver-independent `RequestRequirements`, while `solver_compatibility` and `supports(solver, model, request[, method_context])` report whether a concrete numerical route is currently implemented. `DMFTForwardContext`, `LadderDGAForwardContext`, and `NLCEForwardContext` connect single-site DMFT, ladder-DΓA, and finite-reference NLCE to this pathway. `plan_forward` and `ForwardExecutionPolicy` now provide deterministic route selection: statically certified context-free exact routes may be selected automatically, while every physical approximation must be supplied explicitly and authorized by policy. Physical/model-space admissibility and analytic continuation remain separate.
 
 ```julia
-problem = ForwardProblem(model; solver=ExactDiagonalization())
-result = forward(problem)
+plan = plan_forward(model, request)
+result = forward(plan)
 ```
 
 See the [forward-calculation workflow](https://alt-f4-dev.github.io/Phundamental.jl/stable/workflows/forward-calculations/).
@@ -218,7 +228,7 @@ See the [ED-DMFT workflow](https://alt-f4-dev.github.io/Phundamental.jl/stable/w
 
 `Phundamental.jl` is developed around explicit cross-checks between symbolic definitions, generic numerical references, optimized implementations, limiting cases, and published many-body benchmarks.
 
-The validation suite includes representation-transformation numerics, optimized-versus-reference solver comparisons, bosonic truncation convergence, crystallographic invariant generation, finite-temperature Green-function identities, bath discretization, dense-versus-sectorized impurity ED, threaded-versus-serial impurity ED, DMFT fixed-point and closure tests, and scientific ED-DMFT benchmarks.
+The validation suite includes representation-transformation numerics, optimized-versus-reference solver comparisons, bosonic truncation convergence, crystallographic invariant generation, generic and composite dynamical-response checks, response-conversion identities, request/solver compatibility, high-level DMFT/DΓA/NLCE forward integration, deterministic execution planning, finite-temperature Green-function identities, bath discretization, dense-versus-sectorized impurity ED, threaded-versus-serial impurity ED, DMFT fixed-point and closure tests, and scientific ED-DMFT benchmarks.
 
 Run the package test suite with:
 
@@ -238,7 +248,7 @@ Build the documentation locally with:
 julia --project=docs docs/make.jl
 ```
 
-Scientific benchmarks are kept under `benchmarks/` and are distinct from the unit/regression suite. See the [validation documentation](https://alt-f4-dev.github.io/Phundamental.jl/stable/validation/) for the supported claims, benchmark scope, and known limitations of `v0.0.7`.
+Scientific benchmarks are kept under `benchmarks/` and are distinct from the unit/regression suite. See the [validation documentation](https://alt-f4-dev.github.io/Phundamental.jl/stable/validation/) for the supported claims, benchmark scope, and known limitations of `v0.0.8`.
 
 ## Repository layout
 
@@ -267,8 +277,8 @@ Phundamental.jl/
 
 ## Release scope
 
-`v0.0.7` is the current stable API baseline. It includes the representation-aware model architecture, transformation framework, generic and optimized solver layers, scattering and thermodynamic workflows, finite-temperature Green functions, and the first finite-bath embedding/ED-DMFT implementation.
+`v0.0.8` is the current stable API baseline. In addition to the representation-aware model, transformation, solver, thermodynamic, Green-function, and ED-DMFT machinery established previously, it stabilizes solver-independent dynamical-response requests, arbitrary composite and spin-phonon response matrices, common dynamical-response semantics, explicit response conversions, request/solver compatibility reporting, high-level DMFT/DΓA/NLCE forward integration, and deterministic policy-governed execution planning.
 
-The current ED-DMFT implementation targets the normal-state single-site single-band problem. Superconducting ED-DMFT and broader impurity geometries are outside the `v0.0.7` scope, but remain a target for future releases.
+The stable planner may automatically choose compatible certified exact routes, but physical approximations remain explicit and policy-controlled. The current ED-DMFT implementation targets the normal-state single-site single-band problem; superconducting ED-DMFT and broader impurity geometries remain outside the `v0.0.8` validated scope.
 
 For complete API details and current development status, use the [stable documentation](https://alt-f4-dev.github.io/Phundamental.jl/stable/) or [development documentation](https://alt-f4-dev.github.io/Phundamental.jl/dev/).

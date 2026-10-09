@@ -28,7 +28,7 @@ where $W$ is an integer $3\times3$ rotation in fractional coordinates and $\math
 
 The package does not expose Spglib-native result types as its public symmetry representation. This boundary makes the rest of the package independent of backend object layouts and lets a discovered dataset be persisted, inspected, or supplied directly to a generative specification.
 
-`CrystallographyOptions` controls tolerances. In v0.0.7 the defaults are `symprec=1e-5`, `site_tolerance=1e-7`, and `linear_tolerance=1e-10`. These parameters have different roles: `symprec` is passed to symmetry discovery, `site_tolerance` controls site matching under operations, and `linear_tolerance` controls rank decisions when an invariant basis is reduced to linear independence.
+`CrystallographyOptions` controls tolerances. In v0.0.8 the defaults are `symprec=1e-5`, `site_tolerance=1e-7`, and `linear_tolerance=1e-10`. These parameters have different roles: `symprec` is passed to symmetry discovery, `site_tolerance` controls site matching under operations, and `linear_tolerance` controls rank decisions when an invariant basis is reduced to linear independence.
 
 ## Spglib interface
 

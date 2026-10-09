@@ -4,7 +4,7 @@ Phundamental is organized around semantic layers rather than around a single sol
 
 $$\text{model}\rightarrow\text{representation}\rightarrow\text{transformation}\rightarrow\text{solver}\rightarrow\text{observable}\rightarrow\text{probe}\rightarrow\text{resolution}$$
 
-This architecture is the main compatibility contract of v0.0.7: changing a numerical backend must not silently change the physical representation, and applying a representation transformation must not be described as a mere storage optimization.
+This architecture is the main compatibility contract of v0.0.8: changing a numerical backend must not silently change the physical representation, and applying a representation transformation must not be described as a mere storage optimization.
 
 ## Dependency order
 
@@ -48,6 +48,20 @@ Not every mathematically valid representation is immediately suitable for a fini
 
 This prevents a transformation from being declared numerically usable merely because the symbolic map succeeds. For example, an unconstrained bosonic Fock space may be a valid exact target representation while still requiring an explicit numerical cutoff for matrix realization.
 
+## Request requirements and solver compatibility
+
+Typed observable requests declare the physical output they require through `RequestRequirements`. Numerical methods are checked against the working `ManyBodyModel` and request through `SolverCompatibility`. These objects answer different questions from model-space admissibility: request requirements describe the desired observable, while solver compatibility describes whether the current implementation has a computational route for that model/request combination.
+
+$$\boxed{\text{physical admissibility}\neq\text{current computational compatibility}}$$
+
+A future universal Hamiltonian generator may therefore produce physically admissible models for which every current solver reports incompatibility. Numerical limitations must not feed backward into the definition of the physical hypothesis space. Likewise, an approximate method such as linear spin-wave theory remains explicitly labeled as an approximation even when it is computationally compatible with a request.
+
+Batch 5 extends this compatibility contract to methods whose numerical problem cannot be reconstructed from a finite `ManyBodyModel` alone. `DMFTForwardContext`, `LadderDGAForwardContext`, and `NLCEForwardContext` supply explicit computational context without becoming part of physical Hamiltonian admissibility. Batch 6 may rank fully specified routes, but only under an explicit `ForwardExecutionPolicy`; the method contexts themselves still neither rank methods nor authorize approximations.
+
+The high-level DMFT and ladder-DΓA routes construct solver-specific embedding problems from a direct single-band `HubbardModel` plus explicit lattice/frequency context. The high-level NLCE route constructs connected cluster models from the source material, reference cluster, and Hamiltonian specification, then recursively evaluates the same custom observable request on each cluster through `ForwardProblem`. The raw embedding or NLCE result remains in `ForwardResult.solution`, preserving convergence and method provenance separately from the requested intrinsic observable.
+
+Outer representation transformations are rejected for these method-specific lowering routes because their computational problems are derived from the physical source-model specification. This prevents a transformed Hamiltonian from being computed and then silently ignored while constructing DMFT, DΓA, or NLCE inputs. NLCE may still apply an explicitly declared cluster-level transformation through its method context.
+
 ## Solver results and capability-based introspection
 
 Solver, observable, scattering, and thermodynamic result types do not inherit from one giant result union. The root module instead provides a capability protocol based on fields that results actually expose.
@@ -67,10 +81,10 @@ This lets new backends participate in generic consumers when they expose compati
 
 ## ForwardProblem and ForwardResult
 
-`ForwardProblem` is the typed orchestration object for a complete calculation. It stores the source model, optional representation transformation, solver, solver arguments, intrinsic observable request, probe, resolution model, and metadata.
+`ForwardProblem` is the typed orchestration object for a complete calculation. It stores the source model, optional representation transformation, solver, solver arguments, optional explicit method-specific context, intrinsic observable request, probe, resolution model, and metadata.
 
 ```julia
-problem = ForwardProblem(model; transformation=transformation, solver=solver, observable=observable, probe=probe, resolution=resolution)
+problem = ForwardProblem(model; transformation=transformation, solver=solver, method_context=method_context, observable=observable, probe=probe, resolution=resolution)
 ```
 
 `forward(problem)` executes each stage in order and returns a `ForwardResult` with separate fields:
@@ -86,6 +100,20 @@ result
 ```
 
 The final three fields preserve the distinction between intrinsic spectrum, probe cross section, and instrument response. Consumers that only need an intrinsic observable can stop before probe contraction; experimental comparisons can retain all intermediate results for diagnosis.
+
+## Execution planning
+
+`plan_forward(model, request; ...)` is the policy-governed layer above computational compatibility. It returns an ordinary `ForwardProblem`, preserving the existing orchestration object instead of introducing a competing physical-problem hierarchy. `ForwardRoute` represents a fully specified candidate method, while `ForwardExecutionPolicy` states which physical approximations may participate and whether static compatibility certification is mandatory.
+
+The conservative default policy supplies only context-free exact numerical routes and requires static compatibility certification. Exact harmonic/quadratic specialization and equivalent backend selection may therefore be automatic, while LSWT, DMFT, ladder DΓA, NLCE, and other approximation-bearing routes must be supplied explicitly and authorized by approximation identity. Nested approximations are accumulated, so a DΓA route cannot hide its DMFT reference and an NLCE route cannot hide an approximate inner solver.
+
+The default route catalog does not synthesize Lanczos because the current request requirements do not yet encode whether a partial low-energy eigensystem is sufficient. Lanczos remains available as an explicit caller-supplied exact numerical route. Planning currently ranks supported routes but does not predict memory use or wall time.
+
+Automatic outer representation changes are limited to transformations whose certificates declare them exact and non-approximate. This rule preserves the architectural distinction
+
+$$\text{exact representation map}\neq\text{physical approximation}\neq\text{numerical backend}.$$
+
+A planning failure is a computational/policy failure, not a statement that the Hamiltonian is physically inadmissible. `ForwardPlanningReport` records the assessed candidates and their rejection reasons, and the selected route is retained in the returned `ForwardProblem` plus planning metadata. Analytic continuation remains outside automatic planning.
 
 ## Provenance
 
@@ -124,6 +152,15 @@ CurrentModule = Phundamental
 ```@docs
 Phundamental.ForwardProblem
 Phundamental.ForwardResult
+Phundamental.SolverCompatibility
+Phundamental.ForwardExecutionPolicy
+Phundamental.ForwardRoute
+Phundamental.ForwardRouteAssessment
+Phundamental.ForwardPlanningReport
+Phundamental.ForwardPlanningError
+Phundamental.solver_compatibility
+Phundamental.plan_forward
+Phundamental.planning_report
 Phundamental.forward
 ```
 

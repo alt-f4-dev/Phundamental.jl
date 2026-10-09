@@ -44,7 +44,7 @@ Local frames are particularly important for anisotropic magnets and local-axis I
 
 ## Long-range interactions
 
-`AbstractLongRangeInteraction` is the common abstraction for interactions whose numerical evaluation requires a summation strategy. v0.0.7 includes `CoulombInteraction` and `DipolarInteraction`.
+`AbstractLongRangeInteraction` is the common abstraction for interactions whose numerical evaluation requires a summation strategy. v0.0.8 includes `CoulombInteraction` and `DipolarInteraction`.
 
 `AbstractInteractionSummation` separates the physical interaction from the summation method. `RealSpaceCutoff` truncates in real space; `EwaldSummation` performs a periodic Ewald decomposition. This separation lets the same physical interaction be evaluated with multiple numerical controls.
 
@@ -95,7 +95,7 @@ The resulting model remains in the spin representation unless the user explicitl
 
 ### Anderson impurity model
 
-`AndersonImpurityModel` constructs the finite single-orbital impurity Hamiltonian used by the v0.0.7 ED-DMFT implementation. The bath is spin degenerate: each finite bath orbital is represented for both spin components, and `impurity_bath_sites` exposes the associated impurity/bath indexing.
+`AndersonImpurityModel` constructs the finite single-orbital impurity Hamiltonian used by the v0.0.8 ED-DMFT implementation. The bath is spin degenerate: each finite bath orbital is represented for both spin components, and `impurity_bath_sites` exposes the associated impurity/bath indexing.
 
 The [Embedding](embedding.md) layer normally constructs this model internally after fitting a `DiscreteBath`, but the specification is public so the same finite impurity problem can be built and solved directly.
 
@@ -121,7 +121,7 @@ Hybrid models use composite state spaces and algebras so that factor identity is
 
 Validation is layered. `validate_lattice` checks lattice geometry, `validate_bonds` checks bond data, and `validate_material_model` checks material/geometry consistency. Force-constant validation is represented by `ForceConstantValidationResult` and `validate_force_constants`.
 
-A model passing structural validation does not automatically imply that a chosen numerical solver is admissible. Solver compatibility is checked separately through [Solvers](solvers.md) and its numerical-capability system.
+A model passing structural validation does not automatically imply that a chosen numerical solver is compatible. Computational compatibility is checked separately through [Solvers](solvers.md) and its numerical-capability system; physical admissibility remains a model-space property.
 
 ## Related modules
 

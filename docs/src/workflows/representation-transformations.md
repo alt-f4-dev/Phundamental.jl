@@ -181,7 +181,7 @@ A strong representation-validation sequence is:
 7. compare transformed observables or physical response, not only Hamiltonian eigenvalues;
 8. vary numerical truncations when the exact mathematical map enters an infinite representation.
 
-The v0.0.7 test suite follows this pattern for particle--hole, Majorana, Jordan--Wigner, Holstein--Primakoff, Dyson--Maleev, Schwinger bosons, Abrikosov fermions, Fourier maps, Bogoliubov maps, coordinate--ladder, bosonic displacement, Lang--Firsov, and spin-polaron transformations.
+The v0.0.8 test suite follows this pattern for particle--hole, Majorana, Jordan--Wigner, Holstein--Primakoff, Dyson--Maleev, Schwinger bosons, Abrikosov fermions, Fourier maps, Bogoliubov maps, coordinate--ladder, bosonic displacement, Lang--Firsov, and spin-polaron transformations.
 
 ## See also
 

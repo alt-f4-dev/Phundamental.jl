@@ -52,7 +52,7 @@ The quadrature depth, number of random vectors, and random seed are numerical co
 
 ## Canonical TPQ
 
-`CanonicalTPQ` implements canonical thermal pure quantum states. The v0.0.7 implementation uses explicit imaginary-time filtering with a Krylov propagator option and exposes controls for sampling, Krylov size/tolerance, parallel execution, basis-size limits, and optional symmetry-sector decomposition.
+`CanonicalTPQ` implements canonical thermal pure quantum states. The v0.0.8 implementation uses explicit imaginary-time filtering with a Krylov propagator option and exposes controls for sampling, Krylov size/tolerance, parallel execution, basis-size limits, and optional symmetry-sector decomposition.
 
 Canonical TPQ and generic thermal typicality are conceptually related but remain distinct methods because their state construction and estimator semantics differ.
 
@@ -96,10 +96,36 @@ where the sum runs over proper connected subclusters included by the selected cl
 
 `cluster_thermodynamics` evaluates the selected thermal property on each cluster and returns `ClusterThermodynamicsResult`. `bulk_estimate` combines the linked weights with embedding/multiplicity information supplied by the finite reference construction.
 
-The v0.0.7 cluster machinery is a finite-reference linked-cluster framework. It does not claim an automatic infinite-lattice thermodynamic limit; result metadata explicitly records `:infinite_lattice_claim => false` where appropriate.
+The v0.0.8 cluster machinery is a finite-reference linked-cluster framework. It does not claim an automatic infinite-lattice thermodynamic limit; result metadata explicitly records `:infinite_lattice_claim => false` where appropriate.
 
 !!! note
     The linked-cluster machinery here is a statistical-mechanics cluster expansion and is unrelated to quantum-chemistry coupled-cluster theory.
+
+## NLCE through the common forward API
+
+`NLCEForwardContext` connects finite-reference `NLCESolver` execution to `ForwardProblem` without giving NLCE a separate observable system. The context records the expansion order and an explicit inner solver. For each connected cluster, the high-level route constructs the cluster `ManyBodyModel`, evaluates the same outer `ObservableRequest` through an ordinary nested `ForwardProblem`, and passes the resulting additive scalar or array into the linked-cluster subtraction.
+
+```julia
+request = ObservableRequest(:ground_energy, (_, solution) -> groundenergy(solution))
+context = NLCEForwardContext(4; inner_solver=ExactDiagonalization())
+calculation = forward(ForwardProblem(model; solver=NLCESolver(), method_context=context, observable=request))
+```
+
+`calculation.solution` is the full `NLCEResult`, including order-resolved partial sums and convergence diagnostics, while `calculation.observable_result` is `bulk_estimate(calculation.solution)`. Batch 5 deliberately restricts this high-level recursive route to `ObservableRequest` values that are `Number`s or `AbstractArray`s, because linked-cluster addition and subtraction must be mathematically defined for the returned quantity. Typed spectral-container reconstruction remains a later extension rather than an implicit coercion.
+
+`NLCEForwardContext(inner_transformation=...)` may apply an explicitly selected transformation inside every cluster forward calculation. An outer `ForwardProblem.transformation` is rejected for `NLCESolver` so the source-model specification used to generate clusters cannot be silently replaced or ignored.
+
+```@meta
+CurrentModule = Phundamental
+```
+
+```@docs
+NLCEForwardContext
+```
+
+```@meta
+CurrentModule = Phundamental.Thermodynamics
+```
 
 ## Validation
 

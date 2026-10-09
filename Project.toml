@@ -1,6 +1,6 @@
 name = "Phundamental"
 uuid = "21d6a088-d3df-47da-92e1-38fc81b0985c"
-version = "0.0.7"
+version = "0.0.8"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

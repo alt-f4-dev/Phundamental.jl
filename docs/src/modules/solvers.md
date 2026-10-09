@@ -12,6 +12,8 @@ $$\boxed{\text{physical representation}\neq\text{numerical backend}}$$
 
 Likewise, `AutoSolver` performs exact specialization only; it does not choose a physical approximation such as linear spin-wave theory on the user's behalf.
 
+The package-level Batch 6 planner generalizes this rule without moving policy into the solver module. `plan_forward` may choose among compatible exact solver routes automatically, but approximation-bearing solvers participate only when the caller supplies a complete `ForwardRoute` and explicitly authorizes the corresponding approximation symbols through `ForwardExecutionPolicy`. Solver capability remains a factual property; execution policy remains a separate decision layer.
+
 ## Solver protocol and results
 
 All numerical solvers derive from `AbstractSolver` and implement `solve(solver, model, ...)`. `solver_name` returns a short symbolic identifier suitable for result metadata.
@@ -33,6 +35,12 @@ caps = numerical_capabilities(model)
 before debugging a failed matrix realization. The `reasons` field is designed to explain why a representation cannot yet be solved by the generic pipeline.
 
 `TransformationCapabilities` combines a transformation certificate with numerical closure information for the actual transformed target model. This is useful because an exact transformation can still produce a target representation that requires an explicit truncation or projector before numerical realization.
+
+### Forward computational compatibility
+
+The package-level forward API adds a separate compatibility layer on top of these representation diagnostics. `solver_compatibility(solver, model, request)` combines model-level numerical support, the declared physical requirements of a typed observable request, and the result family produced by the solver. `supports(solver, model)` and `supports(solver, model, request)` provide Boolean convenience queries, while `compatible_solvers(model, request, candidates)` filters only the caller-supplied candidates and performs no ranking.
+
+This terminology is deliberate. Solver compatibility is not Hamiltonian admissibility. Physical admissibility belongs to the model-space/generative layer; a physically valid Hamiltonian may have no currently implemented numerical route. The compatibility report records approximation identity but does not authorize it; `ForwardExecutionPolicy` is the separate package-level mechanism that controls which fully specified routes may be selected automatically.
 
 ### Important capability rules
 
@@ -158,11 +166,11 @@ $$E(\mathbf s)=E_0+\frac{1}{2}\mathbf s^T J\mathbf s+\mathbf h^T\mathbf s,\qquad
 
 `validate_matrix_realization` compares symbolic and realized operators where an independent reference is available. The optimized backends have dedicated validation functions that compare packed and generic pipelines, basis ordering, rank lookup, sector decomposition, mode results, phonon dispersions, and spin-wave results.
 
-The package maintains dense and generic paths as references rather than deleting them after optimization. This policy was important in v0.0.7: the ED-DMFT impurity backend was first validated against dense ED, then sectorized, then threaded while preserving serial/dense equivalence.
+The package maintains dense and generic paths as references rather than deleting them after optimization. This policy was important in v0.0.8: the ED-DMFT impurity backend was first validated against dense ED, then sectorized, then threaded while preserving serial/dense equivalence.
 
 ## Related modules
 
-- [Core / Foundation](core.md) defines the representation and physical restrictions that determine numerical admissibility.
+- [Core / Foundation](core.md) defines the representation and physical restrictions independently of numerical solver compatibility.
 - [Transformations](transformations.md) changes representations before a solver is selected.
 - [Observables](observables.md) consumes solver results without depending on the underlying numerical backend.
 - [Thermodynamics](thermodynamics.md) builds finite-temperature states on top of exact, Krylov, or sampled numerical machinery.

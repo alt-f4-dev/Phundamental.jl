@@ -1,29 +1,23 @@
 # Getting Started
 
-This page gives the shortest path from the v0.0.7 source tree to a model, solver result, and high-level forward calculation. The module pages contain the detailed mathematical conventions and complete API organization.
+This page gives the shortest path from the v0.0.8 source tree to a model, solver result, and high-level forward calculation. The module pages contain the detailed mathematical conventions and complete API organization.
 
-## Loading v0.0.7
+## Loading v0.0.8
 
-The frozen v0.0.7 repository is currently exercised in-place by loading `src/Phundamental.jl` under the active project environment:
+For an installed stable release, load the package normally:
 
 ```julia
-include("src/Phundamental.jl")
-using .Phundamental
+using Phundamental
 ```
 
-The repository project contains the external `Spglib` dependency used by crystallographic symmetry discovery. From a fresh checkout, instantiate the root environment before running tests or calculations:
+To work from a source checkout of the tagged `v0.0.8` tree, instantiate the root environment and start Julia with that project active:
 
 ```bash
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
-```
-
-For interactive work from the repository root:
-
-```bash
 julia --project=.
 ```
 
-then load the module with the `include` form above. The public namespaces are `Foundation`, `Algebra`, `Crystallography`, `Transformations`, `Models`, `Solvers`, `Observables`, `Thermodynamics`, `Greens`, and `Embedding`.
+Then load the package with `using Phundamental`. The public namespaces are `Foundation`, `Algebra`, `Crystallography`, `Transformations`, `Models`, `Solvers`, `Observables`, `Thermodynamics`, `Greens`, and `Embedding`.
 
 ## Construct a simple spin model
 
@@ -34,10 +28,10 @@ const M = Phundamental.Models
 
 lattice = BravaisLattice(reshape([1.0], 1, 1))
 
-basis_sites = [BasisSite(:X, :X, [0.0])
-crystal = M.CrystalStructure(lattice, basis_sites)
+basis_sites = [BasisSite(:X, :X, [0.0])]
+crystal = LatticeCrystalStructure(lattice, basis_sites)
 
-species = Dict(:X => AtomicSpecies(:X; mass=1.0)
+species = Dict(:X => AtomicSpecies(:X; mass=1.0))
 props = [SiteProperties(spin=1//2)]
 
 material = Material("spin chain", crystal; species=species, basis_properties=props)
@@ -137,10 +131,22 @@ println(result.observable_result)
 
 For generic scalar dynamical response, `DynamicalCorrelationRequest(field, qgrid, axis)` requests an autocorrelation and `DynamicalCorrelationRequest(field_a, field_b, qgrid, axis)` requests an ordered cross-correlation. These typed requests can be passed directly to the same forward pipeline.
 
+For coupled models with several response channels, `CompositeDynamicalCorrelationRequest((channel_a=field_a, channel_b=field_b, ...), qgrid, axis)` returns the complete ordered channel matrix. `SpinPhononCorrelationRequest(qgrid, axis)` provides the standard spin-plus-displacement specialization and resolves its fields from the model's observable registry.
+
 For scattering workflows, pass an observable request, probe, and resolution separately:
 
 ```julia
 result = forward(model; solver=OptimizedLanczos(), observable=observable_request, probe=MagneticNeutronProbe(), resolution=GaussianResolution(0.08))
+```
+
+## Canonical v0.0.8 forward demo
+
+The repository-level script `demos/high-level-forward-api.jl` is the canonical executable example of the stable high-level API. It constructs a two-site Heisenberg model, creates a typed spin-tensor scattering request, asks `plan_forward` to select a certified exact route, inspects `planning_report(plan)`, executes `forward(plan)`, and keeps the intrinsic, probe-contracted, and resolution-convolved responses separate.
+
+Run it from the repository root with:
+
+```bash
+julia --project=. demos/high-level-forward-api.jl
 ```
 
 ## Finite-temperature Green functions
@@ -160,7 +166,7 @@ paired_axis = FermionicMatsubaraAxis(32.0, 64; include_negative=true)
 
 ## ED-DMFT
 
-The v0.0.7 embedding layer implements normal-state single-site ED-DMFT. A typical half-filled Bethe problem uses an explicit lattice, Matsubara axis, finite-bath impurity solver, convergence policy, and mixing policy:
+The v0.0.8 embedding layer implements normal-state single-site ED-DMFT. A typical half-filled Bethe problem uses an explicit lattice, Matsubara axis, finite-bath impurity solver, convergence policy, and mixing policy:
 
 ```julia
 beta = 32.0; axis = FermionicMatsubaraAxis(beta, 128)
@@ -194,4 +200,4 @@ OPENBLAS_NUM_THREADS=1 julia -t auto --project=. benchmarks/dmft/ed-dmft-physica
 OPENBLAS_NUM_THREADS=1 julia -t auto --project=. benchmarks/dmft/caffarel-krauth-1994-benchmark.jl
 ```
 
-See [Validation](validation.md) for what these tests establish and what remains outside the v0.0.7 validation scope.
+See [Validation](validation.md) for what these tests establish and what remains outside the v0.0.8 validation scope.

@@ -10,7 +10,7 @@ $$\text{source model}\rightarrow\text{optional transformation}\rightarrow\text{s
 
 ## Why use `ForwardProblem`
 
-For short exploratory calculations, calling `solve` and observable functions directly is often sufficient. `ForwardProblem` becomes useful when the calculation itself should be inspectable or serializable: the transformation, solver, arguments, observable request, probe, resolution, and metadata are all explicit fields rather than implicit call-site context.
+For short exploratory calculations, calling `solve` and observable functions directly is often sufficient. `ForwardProblem` becomes useful when the calculation itself should be inspectable or serializable: the transformation, solver, arguments, optional method-specific context, observable request, probe, resolution, and metadata are all explicit fields rather than implicit call-site context.
 
 A forward plan also guarantees that the observable is evaluated on the working model after any requested representation transformation. Registered physical observables are transformed with the model, preventing a common error in which a source-representation operator is applied to a target-representation eigensystem.
 
@@ -91,6 +91,89 @@ request = CompositeDynamicalCorrelationRequest(fields, qgrid, axis; broadening=G
 ```
 
 The request is sector-agnostic: the labels only identify the rows and columns of the response matrix, while the fields determine the actual registered operators. `SpinPhononCorrelationRequest` is the corresponding high-level physical wrapper for the standard spin and displacement observable families registered by spin-boson and compatible hybrid models.
+
+## Request requirements and computational compatibility
+
+Typed requests expose their physical requirements through `request_requirements`. The returned `RequestRequirements` records the requested response kind, frequency domain, statistics when known, momentum scope, response order, operator channels, temperature, and request metadata. These descriptors state what the calculation asks for; they do not choose a numerical method.
+
+Solver compatibility is queried separately through `solver_compatibility`, `solver_capabilities`, and the `supports(solver, model, request)` overload. A `SolverCompatibility` report distinguishes model support from request support, records whether the compatibility statement is statically certified, identifies an explicitly approximate solver such as linear spin-wave theory, and retains diagnostic reasons.
+
+```julia
+requirements = request_requirements(request)
+report = solver_compatibility(solver, model, request)
+
+if report.compatible
+    result = forward(ForwardProblem(model; solver=solver, observable=request))
+end
+```
+
+`compatible_solvers(model, request, candidates)` filters a caller-supplied collection of solver instances without ranking or selecting among them. Compatibility remains a factual implementation query; Batch 6 execution planning consumes these reports under an explicit policy and never turns compatibility itself into approximation authorization.
+
+Physical/model-space admissibility is a separate question. A Hamiltonian can be physically admissible under a generative specification while remaining unsupported by every current solver. Conversely, a numerically executable Hamiltonian is not thereby certified as a valid member of a physical hypothesis space.
+
+The forward layer checks typed solver/request compatibility before execution and isolates method-specific numerical input construction behind the request-aware solve boundary. Direct model solvers and the harmonic-phonon momentum path continue to use this boundary, while Batch 5 extends it to explicit single-site DMFT, ladder-DΓA, and finite-reference NLCE routes.
+
+## Explicit method contexts for embedding and NLCE
+
+Some physically selected methods require computational information that is not part of the finite `ManyBodyModel` itself. A single-site DMFT calculation needs a noninteracting lattice embedding and Matsubara domain; ladder DΓA additionally needs a momentum lattice and bosonic transfer-frequency box; finite-reference NLCE needs an expansion order and an inner forward solver. These data are supplied through `method_context`, which configures an already selected method and never changes physical/model-space admissibility.
+
+For single-site DMFT, the local interaction and chemical potential remain authoritative on the source `HubbardModel`, while `DMFTForwardContext` supplies the embedding domain:
+
+```julia
+axis = FermionicMatsubaraAxis(beta, [-2, -1, 0, 1, 2])
+context = DMFTForwardContext(AtomicLattice(); temperature=1 / beta, axis=axis)
+request = LocalMatsubaraGreenFunctionRequest(metadata=Dict(:temperature => 1 / beta))
+result = forward(ForwardProblem(model; solver=dmft_solver, method_context=context, observable=request))
+```
+
+`LocalMatsubaraSelfEnergyRequest` exposes the corresponding local Matsubara self-energy. Neither request performs analytic continuation.
+
+For the end-to-end one-shot ladder-DΓA route, `LadderDGAForwardContext` records the converged-DMFT prerequisite machinery and the explicit Matsubara boxes. `MatsubaraSusceptibilityRequest(:charge)` and `MatsubaraSusceptibilityRequest(:magnetic)` select the physical output channel without changing the diagrammatic method. The resulting susceptibility remains in the Matsubara domain and therefore advertises `requires_analytic_continuation(result) == true`.
+
+Finite-reference NLCE uses `NLCEForwardContext(max_order; inner_solver=...)`. Each generated cluster is evaluated recursively through the same `ObservableRequest` and ordinary `ForwardProblem` machinery, after which `NLCESolver` performs linked-cluster subtraction and reconstruction. Batch 5 restricts this high-level route to custom requests whose cluster values are additive scalars or arrays; richer typed response reconstruction can be added without changing the method-context boundary. The raw `NLCEResult` remains available as `ForwardResult.solution`, while `ForwardResult.observable_result` is the reconstructed `bulk_estimate`.
+
+These three high-level routes deliberately reject an outer `transformation` because their computational problems are constructed from the physical source-model specification. Any cluster-level transformation for NLCE must instead be supplied explicitly as `NLCEForwardContext(inner_transformation=...)`. This prevents an exact or approximate representation operation from being silently ignored during method-specific lowering.
+
+## Policy-governed execution planning
+
+`plan_forward` separates route selection from execution. It evaluates deterministic `ForwardRoute` candidates against Batch 4 compatibility, applies a `ForwardExecutionPolicy`, and returns the selected route as an ordinary inspectable `ForwardProblem`. The default policy supplies only context-free exact routes, authorizes no physical approximation, and requires static compatibility certification.
+
+```julia
+plan = plan_forward(model, request)
+report = planning_report(plan)
+result = forward(plan)
+```
+
+The default exact candidate set prefers dedicated harmonic or exactly quadratic solvers when their model/request contracts are satisfied, then dense exact diagonalization. Selection is deterministic: exact routes outrank approximation-bearing routes, certified routes outrank otherwise equivalent uncertified routes, the policy solver preference breaks the next tie, and caller order is the final stable tie-breaker.
+
+`OptimizedLanczos` is intentionally not synthesized by the default planner because the current request contract does not yet distinguish a complete eigensystem requirement from a low-energy partial-eigensystem requirement. A caller who knows that a Lanczos route is sufficient may supply `ForwardRoute(OptimizedLanczos(...))` explicitly; the planner can then rank it without pretending that low-energy truncation is universally equivalent to dense diagonalization. The planner likewise does not estimate wall time or memory, so `include_default_exact_routes=false` can be used when the caller wants to restrict planning to an explicitly supplied computational envelope.
+
+Approximate methods are never synthesized by the planner because their physical or computational context is not uniquely determined by the source model. To make one available, supply it explicitly as a `ForwardRoute` and authorize every approximation used by that route. For example, single-site DMFT requires both an explicit `DMFTForwardContext` and policy authorization:
+
+```julia
+route = ForwardRoute(dmft_solver; method_context=dmft_context)
+policy = ForwardExecutionPolicy(allowed_approximations=(:single_site_dmft,))
+plan = plan_forward(model, request; policy=policy, routes=(route,))
+result = forward(plan)
+```
+
+A ladder-DΓA route carries both the single-site-DMFT reference approximation and the ladder-DΓA approximation, so both symbols must be authorized. NLCE similarly includes any approximation used by its explicitly configured inner solver in addition to `:finite_order_nlce`. This prevents nested approximate methods from being hidden behind one outer solver label.
+
+`ForwardRoute` may carry an outer representation transformation, but automatic planning accepts that transformation only when its `TransformationCertificate` declares it exact and non-approximate. Approximate representation operations remain explicit calculations outside the planner. DMFT, DΓA, and NLCE retain their Batch 5 prohibition on outer transformations because their numerical problems are reconstructed from the physical source-model specification.
+
+When no candidate is both computationally compatible and policy-permitted, `plan_forward` throws `ForwardPlanningError`. The attached `ForwardPlanningReport` retains every candidate assessment, including compatibility diagnostics, approximation identities, certification state, method-context identity, and policy rejection reasons. A planned calculation also propagates the selected solver, approximation tuple, and certification state into mutable solution/observable metadata when available.
+
+The planner performs no analytic continuation. A Matsubara result remains a Matsubara result, and a real-frequency request must be satisfied by a route that directly implements the required response or by a future explicitly configured continuation stage.
+
+## Canonical stable demo
+
+`demos/high-level-forward-api.jl` is the executable reference for the `v0.0.8` high-level architecture. The script uses only public APIs and demonstrates the full stable sequence `ManyBodyModel + ObservableRequest -> plan_forward -> planning_report -> forward -> ForwardResult`, including a magnetic-neutron probe and a separate Gaussian instrument-resolution stage.
+
+```bash
+julia --project=. demos/high-level-forward-api.jl
+```
+
+Because the demo is intentionally small, the default conservative planner selects a certified exact route without authorizing a physical approximation. The printed `ForwardResult` stage types make the separation between intrinsic response, probe response, and final resolution-convolved result explicit.
 
 ## Add a probe only when appropriate
 
@@ -177,5 +260,5 @@ A forward calculation intended for publication or regression testing should reco
 
 - [Architecture](../architecture.md) for the package-wide semantic separation.
 - [Transformations](../modules/transformations.md) for exact maps and approximations.
-- [Solvers](../modules/solvers.md) for numerical admissibility and backend selection.
+- [Solvers](../modules/solvers.md) for numerical capability analysis and computational compatibility.
 - [Observables](../modules/observables.md) for intrinsic response, probes, and resolution.

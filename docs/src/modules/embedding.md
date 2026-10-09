@@ -6,15 +6,15 @@ CurrentModule = Phundamental.Embedding
 
 `Phundamental.Embedding` implements the first self-consistent many-body embedding layer in Phundamental.jl: normal-state, single-site, single-orbital dynamical mean-field theory (DMFT) with a finite exact-diagonalization impurity bath. The implementation is built directly on the typed Green-function objects in [Greens](greens.md), the Hamiltonian models in [Models](models.md), finite-temperature states in [Thermodynamics](thermodynamics.md), and the solver protocol in [Solvers](solvers.md).
 
-The v0.0.7 validated loop is
+The v0.0.8 validated loop is
 
 $$\Sigma(i\omega_n)\rightarrow G_{\mathrm{loc}}(i\omega_n)\rightarrow\mathcal G_0(i\omega_n)\rightarrow\Delta(i\omega_n)\rightarrow\text{finite ED bath}\rightarrow G_{\mathrm{imp}}(i\omega_n)\rightarrow\Sigma_{\mathrm{new}}(i\omega_n).$$
 
 The embedding layer keeps the lattice problem, Weiss field, bath discretization, impurity solve, self-energy mixing, and independent closure verification as separate steps. This makes convergence failures diagnosable rather than reducing the calculation to a single opaque iteration function.
 
-## Scope of v0.0.7
+## Scope of v0.0.8
 
-The stable v0.0.7 implementation assumes a scalar local self-energy, one correlated impurity orbital, spin-degenerate paramagnetic normal-state ED, and single-site self-consistency. The Green-function layer is matrix-valued and supports Nambu indexing, but superconducting/Nambu DMFT is not part of the validated embedding scope.
+The stable v0.0.8 implementation assumes a scalar local self-energy, one correlated impurity orbital, spin-degenerate paramagnetic normal-state ED, and single-site self-consistency. The Green-function layer is matrix-valued and supports Nambu indexing, but superconducting/Nambu DMFT is not part of the validated embedding scope.
 
 The package does not perform analytic continuation as part of the DMFT fixed-point loop. Matsubara convergence and real-frequency continuation are different numerical problems and remain separated.
 
@@ -26,7 +26,7 @@ $$\Delta_{\mathrm{ED}}(z)=\sum_p\frac{|V_p|^2}{z+\mu-\epsilon_p}.$$
 
 `hybridization_function` evaluates this expression on a `FermionicMatsubaraAxis` and returns a typed `HybridizationFunction`.
 
-The bath is spin degenerate in the v0.0.7 impurity model. Each stored bath orbital is realized for both spin channels by `AndersonImpurityModel` when the impurity Hamiltonian is built.
+The bath is spin degenerate in the v0.0.8 impurity model. Each stored bath orbital is realized for both spin channels by `AndersonImpurityModel` when the impurity Hamiltonian is built.
 
 ## Bath fitting
 
@@ -40,7 +40,7 @@ The fitter uses bounded damping, rejects nonfinite trial states before entering 
 
 ### Particle--hole-constrained fitting
 
-At exact half filling, an unconstrained finite bath can drift along a weakly constrained particle--hole-asymmetric direction even when the physical solution is symmetric. v0.0.7 therefore adds `symmetry=:particle_hole`.
+At exact half filling, an unconstrained finite bath can drift along a weakly constrained particle--hole-asymmetric direction even when the physical solution is symmetric. v0.0.8 therefore adds `symmetry=:particle_hole`.
 
 For an even bath, the constrained parameterization imposes pairs
 
@@ -82,7 +82,7 @@ The implementation stores independent task results in canonical slots and perfor
 OPENBLAS_NUM_THREADS=1 julia -t auto --project=. benchmarks/dmft/ed-dmft-scaling-benchmark.jl
 ```
 
-The v0.0.7 scaling campaign verified serial/threaded equivalence and observed substantial speedup for the larger finite baths used by DMFT.
+The v0.0.8 scaling campaign verified serial/threaded equivalence and observed substantial speedup for the larger finite baths used by DMFT.
 
 ## Lattice embeddings
 
@@ -106,7 +106,7 @@ $$\mathcal G_0^{-1}(i\omega_n)=G_{\mathrm{loc}}^{-1}(i\omega_n)+\Sigma(i\omega_n
 
 `weiss_green` evaluates this relation using matrix solves and returns a `NonInteractingGreenFunction`.
 
-For the scalar impurity used in v0.0.7,
+For the scalar impurity used in v0.0.8,
 
 $$\Delta(z)=z+\mu-\epsilon_d-\mathcal G_0(z)^{-1}.$$
 
@@ -155,7 +155,7 @@ The fixed-point iteration performs the following steps:
 
 A small iterative update is necessary but not sufficient for a validated result. With `verify_closure=true`, the solver performs an independent impurity solve at the same accepted self-energy and checks that the recomputed map closes within tolerance.
 
-A key v0.0.7 rule is that the self-energy that satisfied the iterative criterion is the point tested by the independent closure calculation. The solver does not first replace it by the next candidate and then test a different point.
+A key v0.0.8 rule is that the self-energy that satisfied the iterative criterion is the point tested by the independent closure calculation. The solver does not first replace it by the next candidate and then test a different point.
 
 If an iterative residual falls below tolerance but the independent closure residual remains above tolerance and iteration budget remains, the run resumes from the accepted state and retries closure when a later iterate again becomes eligible. `:closure_failed` is reserved for a run that exhausts its budget after entering this closure-retry sequence.
 
@@ -209,9 +209,9 @@ $$\operatorname{Im}\Sigma(i\omega)\approx(1-1/Z)\omega.$$
 
 `validate_dmft_result` collects convergence history, closure, causality, bath quality, particle--hole symmetry, Bethe self-consistency, noninteracting limits, and atomic-limit comparisons when those checks are applicable.
 
-## v0.0.7 physical-regime benchmark
+## v0.0.8 physical-regime benchmark
 
-The final v0.0.7 half-filled Bethe benchmark uses $\beta=32$, $D=\sqrt2$, 128 positive Matsubara frequencies, adaptive mixing, particle--hole-constrained bath fitting, and a benchmark-only iteration ceiling of 320. The general `DMFTSolver` default iteration budget remains 100.
+The final v0.0.8 half-filled Bethe benchmark uses $\beta=32$, $D=\sqrt2$, 128 positive Matsubara frequencies, adaptive mixing, particle--hole-constrained bath fitting, and a benchmark-only iteration ceiling of 320. The general `DMFTSolver` default iteration budget remains 100.
 
 All tested points converged under an independent $10^{-7}$ closure criterion:
 
@@ -241,7 +241,7 @@ For $\beta=32$, $U=3$, $\mu=1.5$, $D=\sqrt2$, and 128 Matsubara frequencies, bot
 
 The larger bath improves both the inverse-Weiss fitting distance and the direct bath residual. The benchmark source intentionally does not treat visually digitized figure points as exact targets.
 
-A CT-QMC comparison, discussed in the finite-temperature ED literature, is not implemented in v0.0.7 and remains an external validation target rather than a claimed package result.
+A CT-QMC comparison, discussed in the finite-temperature ED literature, is not implemented in v0.0.8 and remains an external validation target rather than a claimed package result.
 
 ## Related modules
 
@@ -317,7 +317,7 @@ The remaining exports are the abstract embedding/lattice/impurity-solver types, 
 
 The development API adds a first ladder diagrammatic-DMFT layer through `DiagrammaticDMFTProblem`, `DiagrammaticDMFTSolver`, and `DiagrammaticDMFTResult`. The initial implementation consumes a converged single-site `DMFTResult`, a local irreducible two-particle vertex, and momentum-resolved lattice bubbles, then solves the channel-resolved Bethe-Salpeter equation at every supplied momentum.
 
-The resulting momentum-dependent susceptibility is returned as the observable-layer `SusceptibilityResult`, preserving the package boundary between the correlation method and the physical observable. Diagrammatic susceptibilities explicitly report `frequency_domain(result) == :matsubara`, bosonic response statistics, their physical channel, and the requirement for analytic continuation before real-frequency fluctuation-dissipation conversion. The initial ladder implementation does not yet reconstruct a nonlocal self-energy; result metadata records `:nonlocal_self_energy_reconstructed => false` explicitly.
+The resulting momentum-dependent susceptibility is returned as the observable-layer `SusceptibilityResult`, preserving the package boundary between the correlation method and the physical observable. Diagrammatic susceptibilities explicitly report `frequency_domain(result) == :matsubara`, bosonic response statistics, their physical channel, and the requirement for analytic continuation before real-frequency fluctuation-dissipation conversion. The low-level `DiagrammaticDMFTProblem` branch remains susceptibility-only and records `:nonlocal_self_energy_reconstructed => false`; the end-to-end `LadderDGAProblem` branch can reconstruct the nonlocal self-energy through its explicit Schwinger-Dyson stage.
 
 ```@docs
 DiagrammaticDMFTProblem
@@ -327,11 +327,44 @@ susceptibility
 validate_diagrammatic_dmft_result
 ```
 
+## High-level forward integration
+
+Batch 5 connects the existing embedding solvers to the common `ForwardProblem` pathway without replacing their expert-level problem APIs. `DMFTForwardContext` supplies the lattice embedding, temperature, and fermionic Matsubara axis needed to lower a direct single-band `HubbardModel` into `DMFTProblem`; the interaction and chemical potential remain authoritative on the source model. `LocalMatsubaraGreenFunctionRequest` and `LocalMatsubaraSelfEnergyRequest` then select the intrinsic output while the raw `DMFTResult` remains available as `ForwardResult.solution`.
+
+`LadderDGAForwardContext` performs the corresponding end-to-end lowering for `DiagrammaticDMFTSolver(method=LadderDGA(...))`. The context carries one `MomentumLattice`, the prerequisite `DMFTSolver`, compatible fermionic and bosonic Matsubara axes, and the impurity two-particle backend or precomputed impurity object. `MatsubaraSusceptibilityRequest(:charge)` and `MatsubaraSusceptibilityRequest(:magnetic)` select the observable channel. The converged DMFT reference remains embedded in `LadderDGAResult.problem.dmft_result`, so the high-level route does not collapse local-reference provenance into the final susceptibility.
+
+```julia
+context = DMFTForwardContext(lattice; temperature=T, axis=fermionic_axis)
+request = LocalMatsubaraGreenFunctionRequest(metadata=Dict(:temperature => T))
+calculation = forward(ForwardProblem(model; solver=dmft_solver, method_context=context, observable=request))
+```
+
+```julia
+dga_context = LadderDGAForwardContext(momentum_lattice, bosonic_axis; dmft_solver=dmft_solver, fermionic_axis=fermionic_axis)
+request = MatsubaraSusceptibilityRequest(:magnetic)
+calculation = forward(ForwardProblem(model; solver=dga_solver, method_context=dga_context, observable=request))
+```
+
+These contexts configure explicitly selected methods; they do not rank solvers or determine whether the Hamiltonian is physically admissible. The high-level embedding routes also reject an outer representation transformation because the method-specific computational problem is constructed from the physical source `HubbardModel`. Analytic continuation remains a separate explicit operation.
+
+```@meta
+CurrentModule = Phundamental
+```
+
+```@docs
+DMFTForwardContext
+LadderDGAForwardContext
+```
+
+```@meta
+CurrentModule = Phundamental.Embedding
+```
+
 ## Diagrammatic-DMFT numerical controls and validation scope
 
 The ladder diagrammatic-DMFT path can now construct momentum-resolved bubbles directly from a `MomentumResolvedGreenFunction`, propagate the local irreducible vertex through the Bethe-Salpeter equation, and report inversion conditioning and finite-frequency-box completeness. `diagrammatic_convergence` compares two susceptibility grids produced at different numerical cutoffs or meshes.
 
-The present implementation is intentionally scoped to single-channel ladder susceptibility reconstruction. It does **not** claim a complete DΓA, dual-fermion, or parquet implementation and does not reconstruct a momentum-dependent self-energy; `DiagrammaticDMFTResult.metadata[:nonlocal_self_energy_reconstructed]` remains `false`. Research use therefore requires reporting the local DMFT convergence, fermionic and bosonic frequency boxes, momentum mesh, inverse-conditioning diagnostics, and convergence of the resulting susceptibility with respect to those numerical controls.
+The low-level `DiagrammaticDMFTProblem` implementation is intentionally scoped to single-channel ladder susceptibility reconstruction and does **not** reconstruct a momentum-dependent self-energy; `DiagrammaticDMFTResult.metadata[:nonlocal_self_energy_reconstructed]` remains `false`. The end-to-end `LadderDGAProblem` workflow extends that branch to charge and magnetic ladders and can reconstruct `Σ(k,iν)` through the explicit Schwinger-Dyson stage when `LadderDGA(reconstruct_self_energy=true)`. Neither branch claims a complete DΓA, dual-fermion, or parquet implementation. Research use therefore requires reporting the local DMFT convergence, fermionic and bosonic frequency boxes, momentum mesh, inverse-conditioning diagnostics, and convergence of the resulting susceptibility and any reconstructed self-energy with respect to those numerical controls.
 
 Published validation targets for this development branch include J. Gukelberger, E. Kozik, and H. Hafermann, *Phys. Rev. B* **96**, 035152 (2017), DOI `10.1103/PhysRevB.96.035152`, for the convergence and failure regimes of diagrammatic extensions around DMFT, and J. P. F. LeBlanc *et al.*, *Phys. Rev. B* **100**, 075123 (2019), DOI `10.1103/PhysRevB.100.075123`, for momentum-dependent magnetic susceptibility and neutron-response observables. Numerical values from those works must be supplied with explicit provenance or digitization uncertainty before they are used as pass/fail fixtures; the package does not treat visually inferred values as exact data.
 

@@ -471,6 +471,7 @@ include("observables/CorrelationFunctions.jl")
 include("observables/DynamicStructureFactor.jl")
 include("observables/CompositeResponses.jl")
 include("observables/ForwardRequests.jl")
+include("observables/RequestRequirements.jl")
 include("observables/SpinWaveStructureFactor.jl")
 include("observables/StaticStructureFactor.jl")
 include("observables/SpectralFunctions.jl")
@@ -496,6 +497,12 @@ export AbstractObservable,
        CompositeDynamicalCorrelationRequest,
        SpinPhononCorrelationRequest,
        SpinTensorStructureFactorRequest,
+       LocalMatsubaraGreenFunctionRequest,
+       LocalMatsubaraSelfEnergyRequest,
+       MatsubaraSusceptibilityRequest,
+       RequestRequirements,
+       request_requirements,
+       is_dynamical_request,
        SpectrumConvention,
        MomentumField,
        SpinTensorField,
@@ -1083,12 +1090,19 @@ using .Transformations: AbstractTransformation,
 
 using .Solvers
 
-using .Observables: AbstractProbe,
+using .Observables: AbstractObservable,
+                    AbstractProbe,
                     ObservableRequest,
                     DynamicalCorrelationRequest,
                     CompositeDynamicalCorrelationRequest,
                     SpinPhononCorrelationRequest,
                     SpinTensorStructureFactorRequest,
+                    LocalMatsubaraGreenFunctionRequest,
+                    LocalMatsubaraSelfEnergyRequest,
+                    MatsubaraSusceptibilityRequest,
+                    RequestRequirements,
+                    request_requirements,
+                    is_dynamical_request,
                     SusceptibilityResult,
                     AbstractBroadening,
                     AbstractResolution,
@@ -1328,8 +1342,11 @@ using .Thermodynamics: AbstractThermalMethod,
 using .Greens
 using .Embedding
 
+include("ForwardMethodContexts.jl")
 include("ResultCapabilities.jl")
+include("ForwardCapabilities.jl")
 include("ForwardProblems.jl")
+include("ForwardPlanning.jl")
 
 # =============================================================================
 # 11. High-level forward-calculation orchestration
@@ -1370,7 +1387,7 @@ end
 
 """
     forward(model; transformation=nothing, solver=ExactDiagonalization(),
-            solver_args=(), solver_kwargs=(;),
+            solver_args=(), solver_kwargs=(;), method_context=nothing,
             observable=nothing, probe=nothing, resolution=nothing)
 
 Execute the generic representation-aware forward pipeline
@@ -1382,13 +1399,7 @@ Execute the generic representation-aware forward pipeline
         -> optional probe contraction
         -> optional instrument-resolution convolution.
 
-`observable` is deliberately supplied as a callable
-
-    observable(model, solution) -> observable_result
-
-so the top-level orchestration remains independent of the particular
-observable, q-grid, frequency/energy grid, temperature, and normalization
-conventions.
+`observable` may be a custom callable or a typed `AbstractObservable` request. Typed requests participate in request-aware computational compatibility and may use an explicit `method_context` when an already selected method requires numerical information that is not reconstructible from the finite source model. The context configures that method only; it does not rank solvers, determine physical/model-space admissibility, or authorize an approximation.
 
 Example:
 
@@ -1421,16 +1432,18 @@ function forward(
     solver::AbstractSolver=ExactDiagonalization(),
     solver_args::Tuple=(),
     solver_kwargs::NamedTuple=(;),
+    method_context=nothing,
     observable=nothing,
     probe=nothing,
     resolution=nothing,
 )
     problem = ForwardProblem(model; transformation=transformation, solver=solver, solver_args=solver_args,
-                             solver_kwargs=solver_kwargs, observable=observable, probe=probe, resolution=resolution)
+                             solver_kwargs=solver_kwargs, method_context=method_context, observable=observable, probe=probe, resolution=resolution)
     return forward(problem)
 end
 
 function forward(problem::ForwardProblem)
+    !isnothing(problem.method_context) && throw(ArgumentError("method_context requires a typed AbstractObservable request; construct a solver-specific problem and call solve directly for expert-level method-only execution"))
     model = problem.model
     if isnothing(problem.transformation)
         transformation_result = nothing
@@ -1783,6 +1796,9 @@ export AbstractProbe,
        CompositeDynamicalCorrelationRequest,
        SpinPhononCorrelationRequest,
        SpinTensorStructureFactorRequest,
+       LocalMatsubaraGreenFunctionRequest,
+       LocalMatsubaraSelfEnergyRequest,
+       MatsubaraSusceptibilityRequest,
        SusceptibilityResult,
        MomentumField,
        SpinTensorField,
@@ -2149,8 +2165,26 @@ export CrystalStructure,
 export ForwardProblem,
        CalculationPlan,
        ForwardResult,
+       AbstractForwardMethodContext,
+       DMFTForwardContext,
+       LadderDGAForwardContext,
+       NLCEForwardContext,
        forward,
        evaluate_observable_request,
+       RequestRequirements,
+       request_requirements,
+       is_dynamical_request,
+       SolverCompatibility,
+       solver_compatibility,
+       solver_capabilities,
+       compatible_solvers,
+       ForwardExecutionPolicy,
+       ForwardRoute,
+       ForwardRouteAssessment,
+       ForwardPlanningReport,
+       ForwardPlanningError,
+       plan_forward,
+       planning_report,
        result_capabilities,
        supports,
        result_metadata,

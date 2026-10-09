@@ -119,7 +119,7 @@ The [Solvers](solvers.md) capability layer intentionally does not silently discr
 
 $$D(\alpha)=\exp(\alpha b^\dagger-\alpha^*b).$$
 
-The v0.0.7 active convention maps an operator as $O\mapsto D(\alpha)OD(\alpha)^\dagger$. The inverse displacement is obtained by negating the displacement amplitude.
+The v0.0.8 active convention maps an operator as $O\mapsto D(\alpha)OD(\alpha)^\dagger$. The inverse displacement is obtained by negating the displacement amplitude.
 
 ### Lang--Firsov transformation
 
@@ -164,7 +164,7 @@ This graph is useful for treating representation equivalence as a structured obj
 
 Transformation validation occurs at several levels. Parameter and applicability checks run before mapping. The target representation is constructed explicitly. The Hamiltonian and observables are canonicalized in the target algebra. The test suite then compares exact transformed Hamiltonians and spectra against independently realized source and target calculations where applicable.
 
-Fixed numerical cutoffs can break exact equality even when the mathematical transformation is exact. Such leakage must be interpreted as a numerical-truncation effect rather than silently changing the transformation certificate. The v0.0.7 bosonic validation suite therefore tracks cutoff convergence and leakage separately from exact symbolic transformation identities.
+Fixed numerical cutoffs can break exact equality even when the mathematical transformation is exact. Such leakage must be interpreted as a numerical-truncation effect rather than silently changing the transformation certificate. The v0.0.8 bosonic validation suite therefore tracks cutoff convergence and leakage separately from exact symbolic transformation identities.
 
 ## Related modules
 

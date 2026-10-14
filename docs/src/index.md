@@ -1,6 +1,6 @@
 # Phundamental.jl
 
-`Phundamental.jl` is a representation-aware framework for constructing, transforming, solving, and analyzing quantum many-body models in Julia. Version v0.0.8 stabilizes the model-to-measurement forward architecture: symbolic models and exact transformations feed generic or specialized numerical methods, typed observable requests describe the desired physical response, computational compatibility is inspected explicitly, DMFT/DΓA/NLCE can participate in the common forward pathway, and `plan_forward` selects only routes permitted by an explicit execution policy.
+`Phundamental.jl` is a representation-aware framework for constructing, transforming, solving, and analyzing quantum many-body models in Julia. Symbolic models and explicit transformations feed generic or specialized numerical methods; typed requests describe physical observables, and `plan_forward` selects routes permitted by the execution policy. The package also represents physical model-space admissibility independently of solver capabilities, generates finite crystallographic invariant Hamiltonian families, selects symmetry-complete structural submodels, and connects them to the forward-physics pipeline.
 
 The central design rule is that the physical model, mathematical representation, numerical approximation, solver backend, observable definition, probe response, and instrumental resolution remain distinct objects. This separation makes transformations auditable, allows optimized backends to replace reference implementations without changing the represented physics, and keeps numerical approximations explicit in results and provenance.
 
@@ -16,9 +16,9 @@ Physical constraints define the theory being represented. Numerical truncations 
 
 The manual is organized first by architecture, then by the ten public submodules, and finally by cross-module workflows and validation. Each module page explains the mathematical role of the layer before presenting its API.
 
-- [Getting Started](getting-started.md) covers loading the frozen v0.0.8 source tree, basic model construction, solver selection, and the high-level forward API.
+- [Getting Started](getting-started.md) covers loading the package or a source checkout, basic model construction, solver selection, and the high-level forward API.
 - [Architecture](architecture.md) defines the package-wide data flow, result-capability protocol, provenance model, and the distinction between transformations, approximations, and numerical backends.
-- [Core / Foundation](modules/core.md) defines state spaces, operator algebras, representations, model spaces, parameter spaces, reciprocal-space primitives, and `ManyBodyModel`.
+- [Core / Foundation](modules/core.md) defines state spaces, operator algebras, inspectable physical model-space admissibility, parameter spaces, reciprocal-space primitives, and `ManyBodyModel`.
 - [Algebra](modules/algebra.md) implements noncommutative commutators, rewrite rules, normal ordering, and canonicalization.
 - [Crystallography](modules/crystallography.md) discovers space-group symmetry and generates invariant Hamiltonian bases.
 - [Transformations](modules/transformations.md) represents exact maps, constrained embeddings, gauge-redundant maps, approximations, and transformation graphs.
@@ -29,11 +29,11 @@ The manual is organized first by architecture, then by the ten public submodules
 - [Greens](modules/greens.md) provides finite-temperature Matsubara propagators, Nambu indexing, Lehmann evaluation, Dyson relations, asymptotic moments, and validation diagnostics.
 - [Embedding](modules/embedding.md) provides finite ED baths, impurity solvers, lattice/Weiss self-consistency, adaptive mixing, and the validated single-site ED-DMFT driver.
 - [Workflows](workflows/forward-calculations.md) show how the layers compose without collapsing their mathematical distinctions.
-- [Validation](validation.md) records the validation hierarchy, literature benchmarks, empirical checks, and the scope of the v0.0.8 claims.
+- [Validation](validation.md) records the validation hierarchy, literature benchmarks, empirical checks, and the limits of the documented validation claims.
 
-## Version scope
+## Documentation and validation scope
 
-This manual documents the frozen v0.0.8 API. Later development may extend the package, but statements in this manual are intended to describe the tagged v0.0.8 behavior rather than unreleased interfaces.
+The manual describes the checked-out package source and the stated domains of its validation examples. Numerical benchmark results and regression counts refer to the particular recorded calculations, not to untested parameter regimes or every future revision. Current release and installation tags are maintained in the repository root `README.md`.
 
 ## High-level forward calculation
 
@@ -55,4 +55,4 @@ The executable reference for this stable interface is `demos/high-level-forward-
     `Phundamental.Foundation` is an alias of `Phundamental.PhundamentalCore`. The package does not define `Phundamental.Core` because `Core` is a built-in Julia module.
 
 !!! note
-    Version v0.0.8 validates normal-state, single-site, single-orbital ED-DMFT. The Green-function layer already supports Nambu indexing, but superconducting/Nambu ED-DMFT is outside the validated v0.0.8 embedding scope.
+    The validated ED-DMFT implementation is normal-state, single-site, and single-orbital. The Green-function layer supports Nambu indexing, but superconducting/Nambu ED-DMFT remains outside the validated embedding scope.

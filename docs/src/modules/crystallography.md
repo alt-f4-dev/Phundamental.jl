@@ -28,7 +28,7 @@ where $W$ is an integer $3\times3$ rotation in fractional coordinates and $\math
 
 The package does not expose Spglib-native result types as its public symmetry representation. This boundary makes the rest of the package independent of backend object layouts and lets a discovered dataset be persisted, inspected, or supplied directly to a generative specification.
 
-`CrystallographyOptions` controls tolerances. In v0.0.8 the defaults are `symprec=1e-5`, `site_tolerance=1e-7`, and `linear_tolerance=1e-10`. These parameters have different roles: `symprec` is passed to symmetry discovery, `site_tolerance` controls site matching under operations, and `linear_tolerance` controls rank decisions when an invariant basis is reduced to linear independence.
+`CrystallographyOptions` controls tolerances. The documented defaults are `symprec=1e-5`, `site_tolerance=1e-7`, and `linear_tolerance=1e-10`. These parameters have different roles: `symprec` is passed to symmetry discovery, `site_tolerance` controls site matching under operations, and `linear_tolerance` controls rank decisions when an invariant basis is reduced to linear independence.
 
 ## Spglib interface
 
@@ -84,9 +84,9 @@ This procedure turns a candidate operator list into a symmetry-invariant Hermiti
 
 ## Invariant Hamiltonian bases
 
-`generate_invariant_basis` accepts a `GenerativeSpecification`, crystallographic structure, and candidate operators. It applies body-order and admissibility restrictions, projects accepted candidates through the space group, forms Hermitian components, and extracts a linearly independent basis.
+`generate_invariant_basis` accepts a `GenerativeSpecification`, crystallographic structure, and candidate operators. To preserve the established generator contract, candidate-level body-order and custom admissibility conditions are evaluated before Reynolds projection; an unevaluated declared criterion is now an explicit error rather than a silent rejection. Accepted candidates are projected through the space group, decomposed into Hermitian components, and reduced to a linearly independent basis. When this basis is passed through `generate_hamiltonian_space`, Batch 7 additionally audits every resulting basis direction against the same physical specification. If the specification declares `max_range`, the low-level crystallographic API still requires an explicit `range_evaluator`; it does not infer a physical distance from site or mode indices. Batch 10 can construct this evaluator upstream from material geometry when the standard one-index-per-site mapping is valid.
 
-The result is a `HamiltonianBasis` whose metadata records the symmetry backend, candidate count, rejected candidates, invariant dimension, tolerances, and the key completeness statement
+The result is a `HamiltonianBasis` whose metadata records the symmetry backend, candidate count, body-order and candidate-admissibility rejections, invariant dimension, tolerances, and the key completeness statement
 
 ```text
 :completeness_scope => :supplied_candidate_space
@@ -98,9 +98,11 @@ This metadata is important: symmetry projection proves invariance of the generat
 
 ## High-level crystallographic model-space construction
 
-`crystallographic_specification` discovers the symmetry of a crystal and constructs a `GenerativeSpecification` using the resulting crystallographic orbits and a supplied operator algebra.
+`crystallographic_specification` discovers the symmetry of a crystal and constructs a `GenerativeSpecification` using the resulting crystallographic orbits and a supplied operator algebra. Its `range_evaluator` keyword is forwarded to the physical specification when a finite `max_range` is part of the model class. This callable is intentionally explicit because the mapping from symbolic operator support to crystal geometry is model dependent, especially for orbital, Majorana, coordinate, and composite algebras.
 
-`generate_crystallographic_hamiltonian_space` is the higher-level route. If no candidate list is supplied, it performs finite automatic candidate enumeration before fixed-space projection; if candidates are supplied explicitly, those candidates define the completeness scope.
+`generate_crystallographic_hamiltonian_space` is the higher-level route. If no candidate list is supplied, it performs finite automatic candidate enumeration before fixed-space projection; if candidates are supplied explicitly, those candidates define the completeness scope. The optional `labels` keyword names the final independent invariant directions, allowing a later `ParameterSpace` to expose meaningful coupling names instead of default `Phi_i` labels.
+
+Batch 10 adds a material-aware orchestration layer in `Models` rather than moving material ownership into `Crystallography`. `material_crystallographic_structure`, `material_generative_specification`, and `generate_hamiltonian_family` convert material geometry into this layer, then reuse the existing invariant generator before extracting `ModelStructure` and `ParameterSpace`. The standard symmetry action is accepted only when symbolic operator indices map one-to-one onto crystallographic sites; richer internal-index conventions must provide a custom action and local-space convention.
 
 A typical structure is
 

@@ -1,10 +1,12 @@
 module Algebra
 
 using ..Core
+import ..Core: canonical_model_expression
 
 include("Commutators.jl")
 include("RewriteRules.jl")
 include("Canonicalization.jl")
+include("StructuralCanonicalization.jl")
 
 export commutator,
        anticommutator,

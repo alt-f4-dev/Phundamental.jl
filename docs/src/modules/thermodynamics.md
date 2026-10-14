@@ -52,7 +52,7 @@ The quadrature depth, number of random vectors, and random seed are numerical co
 
 ## Canonical TPQ
 
-`CanonicalTPQ` implements canonical thermal pure quantum states. The v0.0.8 implementation uses explicit imaginary-time filtering with a Krylov propagator option and exposes controls for sampling, Krylov size/tolerance, parallel execution, basis-size limits, and optional symmetry-sector decomposition.
+`CanonicalTPQ` implements canonical thermal pure quantum states. The implementation uses explicit imaginary-time filtering with a Krylov propagator option and exposes controls for sampling, Krylov size/tolerance, parallel execution, basis-size limits, and optional symmetry-sector decomposition.
 
 Canonical TPQ and generic thermal typicality are conceptually related but remain distinct methods because their state construction and estimator semantics differ.
 
@@ -96,7 +96,7 @@ where the sum runs over proper connected subclusters included by the selected cl
 
 `cluster_thermodynamics` evaluates the selected thermal property on each cluster and returns `ClusterThermodynamicsResult`. `bulk_estimate` combines the linked weights with embedding/multiplicity information supplied by the finite reference construction.
 
-The v0.0.8 cluster machinery is a finite-reference linked-cluster framework. It does not claim an automatic infinite-lattice thermodynamic limit; result metadata explicitly records `:infinite_lattice_claim => false` where appropriate.
+The current documented cluster machinery is a finite-reference linked-cluster framework. It does not claim an automatic infinite-lattice thermodynamic limit; result metadata explicitly records `:infinite_lattice_claim => false` where appropriate.
 
 !!! note
     The linked-cluster machinery here is a statistical-mechanics cluster expansion and is unrelated to quantum-chemistry coupled-cluster theory.

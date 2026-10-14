@@ -43,11 +43,19 @@ function _transformed_specification(target::Representation, specification)
     catch
     end
     metadata[:representation_algebra_transport] = target.name
-    return GenerativeSpecification(specification.space_group, specification.wyckoff_orbits, specification.local_spaces,
-                                   target.algebra, specification.symmetry_action;
-                                   admissibility_conditions=specification.admissibility_conditions,
-                                   max_range=specification.max_range, max_body_order=specification.max_body_order,
-                                   metadata=metadata)
+    metadata[:range_evaluator_transport] = isnothing(specification.range_evaluator) ? :none : :not_assumed
+    return GenerativeSpecification(
+        specification.space_group,
+        specification.wyckoff_orbits,
+        specification.local_spaces,
+        target.algebra,
+        specification.symmetry_action;
+        admissibility_conditions=specification.admissibility_conditions,
+        max_range=specification.max_range,
+        max_body_order=specification.max_body_order,
+        range_evaluator=nothing,
+        metadata=metadata,
+    )
 end
 
 function _transformed_model_space(T::AbstractTransformation, target::Representation, model::ManyBodyModel)
@@ -136,3 +144,16 @@ end
 
 """Convenience composition constructor: `compose(T1, T2, ...)`."""
 compose(ts::AbstractTransformation...) = CompositeTransformation(ts...)
+
+"""
+    structurally_related(source, target, transformation)
+
+Return true when an exact, non-approximate representation transformation maps `source` to a model whose canonical Batch 8 structure is structurally equivalent to `target`. This relation does not collapse the source and target structural signatures; it records equivalence through an explicit transformation.
+"""
+function structurally_related(source::ManyBodyModel, target::ManyBodyModel, transformation::AbstractTransformation)
+    cert = certificate(transformation)
+    cert.exact && !cert.approximate || return false
+    applicable(transformation, source) || return false
+    mapped = transform(transformation, source).model
+    return structurally_equivalent(mapped, target)
+end

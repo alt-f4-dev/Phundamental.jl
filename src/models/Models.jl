@@ -2,6 +2,8 @@ module Models
 
 using LinearAlgebra
 using ..Core
+import ..Core: instantiate_model
+import ..Crystallography
 
 # Geometry is deliberately independent of the Hamiltonian constructors.
 include("Geometry/Lattices.jl")
@@ -25,6 +27,7 @@ include("Hamiltonians/FermionModels.jl")
 include("Hamiltonians/ImpurityModels.jl")
 include("Hamiltonians/PhononModels.jl")
 include("Hamiltonians/HybridModels.jl")
+include("Hamiltonians/UniversalGeneration.jl")
 include("Validation.jl")
 
 # Geometry
@@ -98,6 +101,10 @@ export AbstractHamiltonianSpec,
        LocalPhononModel,
        HolsteinModel,
        LongitudinalSpinBosonModel,
+       HamiltonianGenerationResult,
+       material_crystallographic_structure,
+       material_generative_specification,
+       generate_hamiltonian_family,
        validate_lattice,
        validate_bonds,
        validate_material_model,

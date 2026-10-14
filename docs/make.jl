@@ -36,6 +36,8 @@ const DOCUMENTATION_PAGES = [
     ],
     "Workflows" => [
         "Forward Calculations" => "workflows/forward-calculations.md",
+        "Universal Generation and Structural Search" => "workflows/universal-hamiltonian-generation.md",
+        "Structural Forward Closure" => "workflows/structural-forward-closure.md",
         "Representation Transformations" => "workflows/representation-transformations.md",
         "Scattering" => "workflows/scattering.md",
         "ED-DMFT" => "workflows/ed-dmft.md",

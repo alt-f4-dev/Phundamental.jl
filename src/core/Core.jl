@@ -6,6 +6,7 @@ include("StateSpaces.jl")
 include("Algebras.jl")
 include("Operators.jl")
 include("Representations.jl")
+include("ModelStructures.jl")
 include("ModelSpaces.jl")
 include("Models.jl")
 include("ReciprocalSpace.jl")
@@ -102,9 +103,31 @@ export AbstractBasis,
        factorconstraint,
        factortruncation
 
+# Canonical Hamiltonian structures
+export AbstractModelStructure,
+       StructuralSupport,
+       StructuralTerm,
+       InteractionEdge,
+       InteractionGraph,
+       StructuralSignature,
+       ModelStructure,
+       representation_signature,
+       structure,
+       canonicalize_structure,
+       structural_signature,
+       interaction_graph,
+       structurally_equivalent,
+       structural_span_membership
+
 # Hamiltonian model spaces and typed parameters
-export AbstractAdmissibilityCondition,
+export AbstractModelSpace,
+       AbstractAdmissibilityCondition,
+       AdmissibilityCheck,
+       AdmissibilityReport,
        PredicateAdmissibility,
+       admissibility_check,
+       admissibility_report,
+       admissibility_reasons,
        GenerativeSpecification,
        HamiltonianBasis,
        HamiltonianSpace,
@@ -114,6 +137,13 @@ export AbstractAdmissibilityCondition,
        generate_hamiltonian_space,
        hamiltonian_from_coefficients,
        ParameterSpec,
+       AbstractParameterConstraint,
+       FixedParameterConstraint,
+       EqualParameterConstraint,
+       LinearParameterConstraint,
+       ParameterConstraintCheck,
+       ParameterConstraintReport,
+       ParameterBinding,
        ParameterSpace,
        ParameterPoint,
        parameter_space,
@@ -123,6 +153,15 @@ export AbstractAdmissibilityCondition,
        parameter_units,
        parameter_vector,
        free_parameter_indices,
+       parameter_constraints,
+       parameter_constraint_check,
+       parameter_constraint_report,
+       parameter_constraint_reasons,
+       valid_parameter_point,
+       parameter_constraint_matrix,
+       parameter_dof,
+       parameter_bindings,
+       parameter_binding,
        rebind_parameters,
        with_parameters
 

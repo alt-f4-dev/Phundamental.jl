@@ -1,12 +1,12 @@
 # Phundamental.jl
 
-[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://alt-f4-dev.github.io/Phundamental.jl/stable/) [![Documentation Build](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml/badge.svg)](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml) [![Julia](https://img.shields.io/badge/Julia-1.12%2B-9558B2.svg)](https://julialang.org/) [![Version](https://img.shields.io/badge/version-v0.0.8-informational.svg)](https://github.com/alt-f4-dev/Phundamental.jl/tree/v0.0.8)
+[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://alt-f4-dev.github.io/Phundamental.jl/stable/) [![Documentation Build](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml/badge.svg)](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml) [![Julia](https://img.shields.io/badge/Julia-1.12%2B-9558B2.svg)](https://julialang.org/) [![Version](https://img.shields.io/badge/version-v0.0.9-informational.svg)](https://github.com/alt-f4-dev/Phundamental.jl/tree/v0.0.9)
 
 `Phundamental.jl` is a representation-aware Julia framework for constructing, transforming, solving, and analyzing quantum many-body models. The design philosophy is to maintain a strict boundary between the physical model, mathematical representation, numerical approximation, solver backend, observable definition, probe response, and instrument response, keeping each of these concepts explicitly separated.
 
 The package supports symbolic many-body operator algebra, representation transformations, crystallographic invariant generation, finite-cluster and specialized numerical solvers, scattering observables, equilibrium thermodynamics, finite-temperature Green functions, and finite-bath embedding workflows including normal-state single-site exact-diagonalization dynamical mean-field theory (ED-DMFT).
 
-The current stable release is `v0.0.8`.
+The current stable release is `v0.0.9`. The development snapshot may use a separate, independently tracked development identifier.
 
 ## Documentation
 
@@ -21,11 +21,11 @@ The complete documentation is the primary reference for the public API, mathemat
 
 ## Installation
 
-`Phundamental.jl` is currently installed directly from GitHub. To install the stable `v0.0.8` release:
+`Phundamental.jl` is currently installed directly from GitHub. To install the stable `v0.0.9` release:
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/alt-f4-dev/Phundamental.jl", rev="v0.0.8")
+Pkg.add(url="https://github.com/alt-f4-dev/Phundamental.jl", rev="v0.0.9")
 ```
 
 Then load the package normally:
@@ -126,7 +126,7 @@ solution = solve(AutoSolver(), model)
 
 ## Canonical high-level forward demo
 
-The stable `v0.0.8` release includes [`demos/high-level-forward-api.jl`](demos/high-level-forward-api.jl), a compact end-to-end example of the public forward architecture. It constructs a physical spin model, defines a typed scattering request, lets `plan_forward` choose a policy-permitted exact route, inspects the resulting planning report, executes the calculation, and retains the intrinsic response, probe-contracted response, and resolution-convolved result as separate stages.
+The stable release includes [`demos/high-level-forward-api.jl`](demos/high-level-forward-api.jl), a compact end-to-end example of the public forward architecture. It constructs a physical spin model, defines a typed scattering request, lets `plan_forward` choose a policy-permitted exact route, inspects the resulting planning report, executes the calculation, and retains the intrinsic response, probe-contracted response, and resolution-convolved result as separate stages.
 
 Run it from the repository root with:
 
@@ -193,6 +193,16 @@ The embedding layer provides finite discrete Anderson baths, constrained and unc
 
 ## Representative workflows
 
+### Physical model-space admissibility
+
+The model-space architecture extends the earlier stable forward-API baseline by establishing physical model-space admissibility as a prerequisite for universal Hamiltonian generation. `AbstractModelSpace`, `GenerativeSpecification`, `HamiltonianSpace`, and `admissibility_report` define the physical hypothesis-space boundary independently of numerical solver support. Reports distinguish failed criteria from unevaluated criteria, validate operator-algebra and body-order constraints, and require an explicit physical `range_evaluator` whenever `max_range` is declared. Generated spaces and generated/reparameterized models are checked before they are returned, while direct `HamiltonianSpace` construction remains available for inspecting externally supplied or incompletely certified bases. Batch 8 adds canonical algebraic span certification when numeric linear coordinates are available.
+
+```julia
+spec = GenerativeSpecification(:C1, (:site_1,), (SpinHilbertSpace([1//2]),), SpinAlgebra(1), identity; max_body_order=1)
+report = admissibility_report(spec, Sz(1))
+@assert report.complete && report.admissible
+```
+
 ### Forward calculations
 
 `ForwardProblem`, `forward`, and `ForwardResult` coordinate model transformation, solution, observable evaluation, probe response, and resolution while retaining every intermediate stage. Typed requests additionally expose solver-independent `RequestRequirements`, while `solver_compatibility` and `supports(solver, model, request[, method_context])` report whether a concrete numerical route is currently implemented. `DMFTForwardContext`, `LadderDGAForwardContext`, and `NLCEForwardContext` connect single-site DMFT, ladder-DΓA, and finite-reference NLCE to this pathway. `plan_forward` and `ForwardExecutionPolicy` now provide deterministic route selection: statically certified context-free exact routes may be selected automatically, while every physical approximation must be supplied explicitly and authorized by policy. Physical/model-space admissibility and analytic continuation remain separate.
@@ -248,7 +258,7 @@ Build the documentation locally with:
 julia --project=docs docs/make.jl
 ```
 
-Scientific benchmarks are kept under `benchmarks/` and are distinct from the unit/regression suite. See the [validation documentation](https://alt-f4-dev.github.io/Phundamental.jl/stable/validation/) for the supported claims, benchmark scope, and known limitations of `v0.0.8`.
+Scientific benchmarks are kept under `benchmarks/` and are distinct from the unit/regression suite. See the [validation documentation](https://alt-f4-dev.github.io/Phundamental.jl/stable/validation/) for the supported claims, benchmark scope, and known limitations of the recorded reference calculations.
 
 ## Repository layout
 
@@ -277,8 +287,44 @@ Phundamental.jl/
 
 ## Release scope
 
-`v0.0.8` is the current stable API baseline. In addition to the representation-aware model, transformation, solver, thermodynamic, Green-function, and ED-DMFT machinery established previously, it stabilizes solver-independent dynamical-response requests, arbitrary composite and spin-phonon response matrices, common dynamical-response semantics, explicit response conversions, request/solver compatibility reporting, high-level DMFT/DΓA/NLCE forward integration, and deterministic policy-governed execution planning.
+`v0.0.9` extends the stable `v0.0.8` forward-API baseline with physical model-space admissibility, canonical coefficient-independent Hamiltonian structures, equality-constrained parameter schemas, material-aware crystallographic invariant-basis generation, symmetry-complete structural selection and search, deterministic structural identifiers, selection-to-model instantiation, and structural forward closure. The earlier forward architecture provides solver-independent response requests, composite and spin-phonon response matrices, response conversions, request/solver compatibility, high-level DMFT/DΓA/NLCE integration, and deterministic policy-governed execution planning.
 
-The stable planner may automatically choose compatible certified exact routes, but physical approximations remain explicit and policy-controlled. The current ED-DMFT implementation targets the normal-state single-site single-band problem; superconducting ED-DMFT and broader impurity geometries remain outside the `v0.0.8` validated scope.
+The stable planner may automatically choose compatible certified exact routes, but physical approximations remain explicit and policy-controlled. The current ED-DMFT implementation targets the normal-state single-site single-band problem; superconducting ED-DMFT and broader impurity geometries remain outside the validated normal-state ED-DMFT scope.
 
 For complete API details and current development status, use the [stable documentation](https://alt-f4-dev.github.io/Phundamental.jl/stable/) or [development documentation](https://alt-f4-dev.github.io/Phundamental.jl/dev/).
+
+
+## Canonical Hamiltonian structure
+
+Physical model-space admissibility and numerical solver compatibility are separate contracts. Batch 8 additionally exposes a coefficient-independent canonical Hamiltonian structure through `structure(model)`, `structural_signature(model)`, and `interaction_graph(model)`. `structurally_equivalent(a, b)` compares canonical structures only inside the same physical representation context; exact cross-representation equivalence remains explicit through `structurally_related(source, target, transformation)`.
+
+
+## Constraint-bearing parameter schemas
+
+Batch 9 extends the existing `ParameterSpace` rather than introducing a parallel schema hierarchy. Named real couplings can carry fixed-value, shared/equality, and general linear constraints, while `ParameterBinding` associates each coupling with the Batch 8 structural signature of the Hamiltonian-basis direction that it multiplies.
+
+```julia
+constraint = EqualParameterConstraint(:Jx, :Jy)
+schema = ParameterSpace(space; values=[1.0, 0.5, 0.5], constraints=(constraint,))
+point = ParameterPoint(schema)
+A, b = parameter_constraint_matrix(schema)
+println(parameter_dof(schema))
+```
+
+The parameter layer answers whether $\boldsymbol\theta\in\Theta(\mathfrak G)$; it does not decide whether $\mathfrak G$ is physically admissible or whether a solver can evaluate the resulting Hamiltonian. Exact representation transformations preserve parameter names, values, and equality constraints while regenerating structural bindings in the target representation.
+
+## Material- and crystallography-aware Hamiltonian generation
+
+Batch 10 coordinates the existing material, crystallography, model-space, structural, and parameter machinery through `generate_hamiltonian_family`. The material-aware route converts three-dimensional material geometry into a backend-neutral crystallographic structure, resolves or accepts the space-group dataset, generates the symmetry-invariant Hermitian Hamiltonian basis, audits Batch 7 physical admissibility, extracts the Batch 8 canonical structure, and constructs the Batch 9 parameter schema.
+
+```julia
+# `material_3d` is a three-dimensional Material.
+family = generate_hamiltonian_family(material_3d, SpinAlgebra(length(material_3d.crystal.basis)); max_body_order=2)
+println(family.dataset.international_symbol)
+println(model_space_dimension(family.hamiltonian_space))
+println(parameter_dof(family.parameter_space))
+```
+
+`HamiltonianGenerationResult` keeps the material source, optional periodic supercell, crystallographic structure and dataset, `GenerativeSpecification`, `HamiltonianSpace`, `ModelStructure`, and `ParameterSpace` separately inspectable. The standard crystallographic action assumes one symbolic operator index per crystallographic site; richer orbital or internal-component conventions must provide a custom symmetry action and local-space convention explicitly. When `max_range` is declared under the standard site mapping, the generator supplies a geometry-aware range evaluator rather than interpreting symbolic indices as distances.
+
+The material-only route addresses primitive-cell-indexed degrees of freedom. Use the periodic-supercell overload when translated sites must be distinct operator supports. Structural neighborhoods and finite hierarchies are provided by Batch 11. Batch 12 connects selected structures to model instantiation and the existing forward-physics stack through deterministic machine-readable interfaces.

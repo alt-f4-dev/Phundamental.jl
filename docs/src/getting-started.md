@@ -1,8 +1,8 @@
 # Getting Started
 
-This page gives the shortest path from the v0.0.8 source tree to a model, solver result, and high-level forward calculation. The module pages contain the detailed mathematical conventions and complete API organization.
+This page gives the shortest path from a source checkout to a model, solver result, and high-level forward calculation. The module pages contain the detailed mathematical conventions and complete API organization.
 
-## Loading v0.0.8
+## Loading Phundamental.jl
 
 For an installed stable release, load the package normally:
 
@@ -10,7 +10,7 @@ For an installed stable release, load the package normally:
 using Phundamental
 ```
 
-To work from a source checkout of the tagged `v0.0.8` tree, instantiate the root environment and start Julia with that project active:
+To work from a source checkout, instantiate the root environment and start Julia with that project active:
 
 ```bash
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
@@ -69,6 +69,71 @@ A numerical boson cutoff is attached with `with_truncation`; it is not encoded a
 ```julia
 truncated = with_truncation(model, NumericalTruncation(8))
 ```
+
+## Inspect physical model-space admissibility
+
+The model-space API can evaluate physical/model-space admissibility before any solver is selected. A `GenerativeSpecification` declares the operator algebra and physical restrictions, while `admissibility_report` records each evaluated criterion and distinguishes rejection from incomplete information.
+
+```julia
+space = SpinHilbertSpace([1//2])
+algebra = SpinAlgebra(1)
+spec = GenerativeSpecification(:C1, (:site_1,), (space,), algebra, identity; max_body_order=1)
+report = admissibility_report(spec, Sz(1))
+println(report.complete)
+println(report.admissible)
+```
+
+A declared `max_range` requires an explicit `range_evaluator(candidate)` that returns a physical distance. The package does not reinterpret symbolic site or mode indices as geometry. `solver_compatibility` remains a later and independent computational question.
+
+## Define a constraint-bearing parameter schema
+
+Batch 9 uses the existing `ParameterSpace` as the coupling schema attached to a `HamiltonianSpace`. The schema can enforce bounds together with fixed, shared, or general linear relations among named real coefficients.
+
+```julia
+spin_space = SpinHilbertSpace([1//2])
+algebra = SpinAlgebra(1)
+spec = GenerativeSpecification(:C1, (:site_1,), (spin_space,), algebra, identity; max_body_order=1)
+basis = HamiltonianBasis(AbstractOperatorExpr[Sz(1), Sx(1)]; labels=[:hz, :hx])
+hamiltonian_space = generate_hamiltonian_space(spec, _ -> basis)
+
+schema = ParameterSpace(
+    hamiltonian_space;
+    values=[0.5, 0.5],
+    bounds=[(-2.0, 2.0), (-2.0, 2.0)],
+    constraints=(EqualParameterConstraint(:hz, :hx),),
+)
+
+point = ParameterPoint(schema)
+println(parameter_constraint_report(point).valid)
+println(parameter_dof(schema))
+```
+
+`parameter_binding(schema, :hz)` identifies the Hamiltonian-basis direction multiplied by `:hz` through its Batch 8 structural signature. `parameter_constraint_matrix(schema)` exposes the affine equalities as $A\boldsymbol\theta=\mathbf b$ for later inverse machinery. These constraints are independent of physical model-space admissibility and solver compatibility.
+
+## Generate a Hamiltonian family from material crystallography
+
+Batch 10 connects material geometry to the Batch 7--9 model-space, structural, and parameter layers. For a three-dimensional material, `generate_hamiltonian_family` converts the lattice geometry to the crystallography layer, discovers or accepts a space-group dataset, projects candidate operators into the invariant Hermitian subspace, audits physical admissibility, extracts canonical structure, and creates the corresponding `ParameterSpace`.
+
+```julia
+using LinearAlgebra
+
+lattice3 = BravaisLattice(Matrix{Float64}(I, 3, 3))
+crystal3 = LatticeCrystalStructure(lattice3, [BasisSite(:A, :A, [0.0, 0.0, 0.0]), BasisSite(:B, :B, [0.4, 0.0, 0.0])])
+material3 = Material(
+    "two-site magnet",
+    crystal3;
+    species=Dict(:A => AtomicSpecies(:A; mass=1.0), :B => AtomicSpecies(:B; mass=1.0)),
+    basis_properties=[SiteProperties(spin=1//2), SiteProperties(spin=1//2)],
+)
+
+family = generate_hamiltonian_family(material3, SpinAlgebra(2); max_body_order=2, max_range=0.6)
+family.specification
+family.hamiltonian_space
+family.model_structure
+family.parameter_space
+```
+
+The standard symmetry action assumes one operator index per crystallographic site. Supply a custom `symmetry_action` and explicit `local_spaces` for multi-orbital or other internal-index conventions. If translated sites must be distinct Hamiltonian supports, use the `generate_hamiltonian_family(material, periodic_supercell, algebra; ...)` overload rather than the primitive-cell-only route. See [Universal Hamiltonian Generation](workflows/universal-hamiltonian-generation.md) for the full contract.
 
 ## Choose a solver
 
@@ -139,7 +204,7 @@ For scattering workflows, pass an observable request, probe, and resolution sepa
 result = forward(model; solver=OptimizedLanczos(), observable=observable_request, probe=MagneticNeutronProbe(), resolution=GaussianResolution(0.08))
 ```
 
-## Canonical v0.0.8 forward demo
+## Canonical forward demo
 
 The repository-level script `demos/high-level-forward-api.jl` is the canonical executable example of the stable high-level API. It constructs a two-site Heisenberg model, creates a typed spin-tensor scattering request, asks `plan_forward` to select a certified exact route, inspects `planning_report(plan)`, executes `forward(plan)`, and keeps the intrinsic, probe-contracted, and resolution-convolved responses separate.
 
@@ -166,7 +231,7 @@ paired_axis = FermionicMatsubaraAxis(32.0, 64; include_negative=true)
 
 ## ED-DMFT
 
-The v0.0.8 embedding layer implements normal-state single-site ED-DMFT. A typical half-filled Bethe problem uses an explicit lattice, Matsubara axis, finite-bath impurity solver, convergence policy, and mixing policy:
+The validated embedding layer implements normal-state single-site ED-DMFT. A typical half-filled Bethe problem uses an explicit lattice, Matsubara axis, finite-bath impurity solver, convergence policy, and mixing policy:
 
 ```julia
 beta = 32.0; axis = FermionicMatsubaraAxis(beta, 128)
@@ -200,4 +265,4 @@ OPENBLAS_NUM_THREADS=1 julia -t auto --project=. benchmarks/dmft/ed-dmft-physica
 OPENBLAS_NUM_THREADS=1 julia -t auto --project=. benchmarks/dmft/caffarel-krauth-1994-benchmark.jl
 ```
 
-See [Validation](validation.md) for what these tests establish and what remains outside the v0.0.8 validation scope.
+See [Validation](validation.md) for what these tests establish and what remains outside the documented validation scope.

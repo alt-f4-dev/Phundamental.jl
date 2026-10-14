@@ -119,7 +119,7 @@ The [Solvers](solvers.md) capability layer intentionally does not silently discr
 
 $$D(\alpha)=\exp(\alpha b^\dagger-\alpha^*b).$$
 
-The v0.0.8 active convention maps an operator as $O\mapsto D(\alpha)OD(\alpha)^\dagger$. The inverse displacement is obtained by negating the displacement amplitude.
+The active displacement convention maps an operator as $O\mapsto D(\alpha)OD(\alpha)^\dagger$. The inverse displacement is obtained by negating the displacement amplitude.
 
 ### Lang--Firsov transformation
 
@@ -139,11 +139,21 @@ Some exact transformations generate operator factors that should not be prematur
 
 The registry is intended for discoverability and configuration-driven workflows. It does not replace the type-specific certificate and applicability checks performed by the transformation itself.
 
+## Model-space admissibility under representation changes
+
+When a `ManyBodyModel` carries a `GenerativeSpecification` or `HamiltonianSpace`, an exact transformation reconstructs that specification in the target operator algebra and maps each stored Hamiltonian-basis direction. Physical admissibility remains distinct from transformation exactness: representation-specific `range_evaluator` callables are deliberately not transported automatically because a map such as Fourier or Jordan--Wigner can change how symbolic support encodes physical locality. If the source specification declares `max_range`, the transformed specification retains that physical limit but records `:range_evaluator_transport => :not_assumed`; `admissibility_report` therefore remains incomplete until a valid target-representation range evaluator is supplied.
+
+## Parameter-schema transport
+
+When the source model carries a Batch 9 `ParameterSpace` or `ParameterPoint`, exact transformation machinery preserves the ordered parameter specifications, concrete values, and explicit equality constraints while rebinding the schema to the transformed `HamiltonianSpace`. `rebind_parameters` regenerates each `ParameterBinding` from the mapped basis direction, so coupling identity is retained by name and basis index while the binding's structural signature changes with the target representation.
+
+This is intentionally different from transporting physical locality metadata. A parameter relation such as $J_1=J_2$ remains a relation between the same two physical couplings under an exact representation map, whereas a source-side range evaluator may no longer be meaningful after a nonlocal transformation.
+
 ## Approximations
 
 `AbstractApproximation` is intentionally separate from `AbstractTransformation`. `ApproximationCertificate` records assumptions, validity conditions, approximation order, an optional error model, and notes. `ApproximationResult` retains the approximated model together with discarded information and validation metadata.
 
-`ModelSpaceProjection` implements a generic projection onto a target `HamiltonianSpace`. The caller supplies a projector that returns either the retained Hamiltonian or the pair $(H_\parallel,H_\perp)$. An optional error metric can quantify the discarded component.
+`ModelSpaceProjection` implements a generic projection onto a target `HamiltonianSpace`. The caller supplies a projector that returns either the retained Hamiltonian or the pair $(H_\parallel,H_\perp)$. An optional error metric can quantify the discarded component. The resulting approximation validation retains the Boolean `:admissible` and `:admissibility_complete` summaries, so a projection failure can be distinguished from an unevaluated physical criterion; the full diagnostic report remains available through `admissibility_report(result.model)`.
 
 `transformation_closure_defect` measures whether a mapped operator basis closes in a target basis when supplied with an independent-rank function. This is useful when assessing whether a proposed transformation preserves a chosen finite model class even if the full operator transformation is exact.
 
@@ -164,7 +174,20 @@ This graph is useful for treating representation equivalence as a structured obj
 
 Transformation validation occurs at several levels. Parameter and applicability checks run before mapping. The target representation is constructed explicitly. The Hamiltonian and observables are canonicalized in the target algebra. The test suite then compares exact transformed Hamiltonians and spectra against independently realized source and target calculations where applicable.
 
-Fixed numerical cutoffs can break exact equality even when the mathematical transformation is exact. Such leakage must be interpreted as a numerical-truncation effect rather than silently changing the transformation certificate. The v0.0.8 bosonic validation suite therefore tracks cutoff convergence and leakage separately from exact symbolic transformation identities.
+Fixed numerical cutoffs can break exact equality even when the mathematical transformation is exact. Such leakage must be interpreted as a numerical-truncation effect rather than silently changing the transformation certificate. The bosonic validation suite therefore tracks cutoff convergence and leakage separately from exact symbolic transformation identities.
+
+## Structural relations across representations
+
+### Structural relation
+
+```@docs
+structurally_related
+```
+
+
+Batch 8 distinguishes canonical structural identity from exact physical equivalence under a representation map. `structurally_equivalent(source, target)` is intentionally false when the models occupy different physical representation contexts, even when an exact transformation connects them.
+
+`structurally_related(source, target, transformation)` checks the transformation certificate, requires an exact non-approximate map applicable to the source, transforms the source, and compares the resulting target-side canonical structure with `target`. This preserves the fact that an exact nonlocal map can alter interaction topology without changing the underlying physical theory.
 
 ## Related modules
 

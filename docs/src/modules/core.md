@@ -82,7 +82,7 @@ $$\mathfrak R=(\mathcal S,\mathcal S_{\mathrm{phys}},\mathcal A,\mathcal B,\math
 `GaugeStructure` records gauge redundancy introduced by enlarged representations. This information is used by transformation certificates to distinguish an exact algebraic embedding from a one-to-one unitary change of basis.
 
 !!! note
-    Nambu indexing is not represented by `Representation`. In v0.0.8 it is an index structure on Green functions and is documented in [Greens](greens.md).
+    Nambu indexing is not represented by `Representation`. It is an index structure on Green functions and is documented in [Greens](greens.md).
 
 ## Reciprocal-space primitives
 
@@ -96,21 +96,57 @@ where `q` is chosen as the nearest-origin representative in the first Brillouin-
 
 The API intentionally rejects ambiguous raw vectors in places where Cartesian versus reciprocal coordinates would change the physics. Callers should construct the appropriate wave-vector type explicitly.
 
+## Canonical Hamiltonian structures
+
+Batch 8 introduces a coefficient-independent structural intermediate representation between symbolic Hamiltonians and later structural inference. `structure(model)` canonicalizes the Hamiltonian in its declared operator algebra, removes numerical coupling magnitudes from structural identity, records local supports and operator topology, and returns a `ModelStructure`.
+
+The structural signature has the conceptual form
+
+$$\mathfrak G=(\mathfrak R_{\mathrm{phys}},\{\mathcal O_a\},\mathcal E),$$
+
+where the physical representation context excludes numerical truncation and user-facing representation names, the operator set contains canonical nonzero term templates, and $\mathcal E$ is an interaction hypergraph connecting the supports of each term.
+
+`structurally_equivalent(A, B)` means that two Hamiltonians have the same canonical operator structure in the same physical representation context. Numerical coefficients are deliberately excluded, so changing a nonzero coupling does not create a new structure. Setting a coupling exactly to zero can remove an active structural term from an instantiated model. `structure(space::HamiltonianSpace)` instead reports the full family structure admitted by the basis, independent of a particular parameter point.
+
+Exact representation transformations do not collapse structural identity. A spin Hamiltonian and its exact Jordan--Wigner fermion image generally have different `StructuralSignature`s because locality and operator topology have changed. The transformation layer exposes `structurally_related(source, target, transformation)` for this distinct notion of exact cross-representation relation.
+
+Batch 8 also uses the algebraic canonicalizer to certify real linear-span membership in a `HamiltonianSpace`. This closes the Batch 7 case in which an algebraically equivalent expression could remain structurally unresolved even though canonicalization proves its basis coordinates.
+
 ## Admissibility and generative model spaces
 
-`AbstractAdmissibilityCondition` defines a predicate over candidate Hamiltonian terms. `PredicateAdmissibility` packages a Julia predicate as a typed admissibility rule. `GenerativeSpecification` combines generation rules with admissibility conditions so that a model class can be defined before specific couplings are chosen.
+`AbstractAdmissibilityCondition` is the extension point for physical restrictions on candidate Hamiltonians, while `PredicateAdmissibility` packages an ordinary Julia predicate as a named rule. `GenerativeSpecification` now defines the explicit physical admissibility boundary through its operator algebra, optional algebra-aware `max_body_order`, optional physical `max_range`, and custom admissibility conditions. These criteria are properties of the model space and are independent of any solver that may or may not support the resulting Hamiltonian.
 
-`HamiltonianBasis` stores a linearly independent operator basis for a model class. `HamiltonianSpace` combines that basis with the associated constraints and metadata. `generated_basis` exposes the basis produced by a generative specification, while `model_space_dimension` reports its dimension.
+`admissibility_report` returns an `AdmissibilityReport` composed of named `AdmissibilityCheck` objects. A report distinguishes rejection from incomplete evaluation: `report.complete` is false if a declared condition cannot be evaluated, while `report.admissible` is true only when the report is complete and every check passes. `admissibility_reasons` exposes the corresponding rejection or incompleteness messages. Custom `AbstractAdmissibilityCondition` implementations may specialize `admissibility_check`; implementations that only define the existing `admissible(condition, candidate)` protocol remain supported.
 
-`generate_hamiltonian_space` applies a specification to construct an admissible model space. `hamiltonian_from_coefficients` converts a coefficient vector into a symbolic Hamiltonian in that basis. This layer is the natural connection point for topology-aware or data-driven model inference because inference can act on a constrained Hamiltonian space rather than on arbitrary operator strings.
+Every candidate is checked against the declared operator algebra, including primitive-family and index bounds. `max_body_order` uses the existing algebra-aware `body_order` definition. A declared `max_range` is never inferred from operator or site indices: the specification must provide an explicit `range_evaluator(candidate)` that returns the physical interaction range. If `max_range` is present without such an evaluator, the range check is `missing`, the report is incomplete, and the candidate is not certified admissible.
 
-## Parameter spaces
+`HamiltonianBasis` stores the operator basis associated with a model class, and `HamiltonianSpace <: AbstractModelSpace` ties that basis to its `GenerativeSpecification`. Direct `HamiltonianSpace` construction remains declarative so externally generated bases can be inspected even when they are invalid or incompletely certified; `admissibility_report(space)` audits every basis direction. By contrast, `generate_hamiltonian_space` now requires every generated basis direction to have a complete passing admissibility report before it returns the space. This audit does not yet claim Hermiticity, linear independence, symmetry completeness, or universal-generator completeness beyond the evidence recorded by the generator.
 
-`ParameterSpec` describes one named parameter, including bounds, units, and whether it is fixed or free. `ParameterSpace` collects those specifications, and `ParameterPoint` assigns concrete values.
+`admissibility_report(space, candidate)` also checks membership in the real span represented by the current `HamiltonianBasis`. Batch 8 supplies canonical algebraic linear coordinates, so algebraically equivalent numeric expressions can now be certified against the recorded basis span. Expressions whose coefficients cannot be reduced to numeric linear coordinates remain explicitly unresolved rather than being guessed.
 
-Convenience functions include `parameter_names`, `parameter_bounds`, `parameter_units`, `parameter_vector`, and `free_parameter_indices`. `parameter_point` validates concrete values against a `ParameterSpace`, while `rebind_parameters` and `with_parameters` create updated parameterized objects without mutating the original model.
+`hamiltonian_from_coefficients` converts a real coefficient vector into a symbolic Hamiltonian in the chosen basis. Because a user-defined admissibility predicate need not be closed under linear combination, auditing every basis direction does not imply that every coefficient combination is valid. `instantiate_model` therefore validates the resulting `ManyBodyModel` against the attached model space, and `with_parameters(...; rebuild=true)` revalidates the rebuilt Hamiltonian. `admissibility_report(model)` uses the model's attached `HamiltonianSpace` or `GenerativeSpecification`; a model without either cannot make a package-level physical-admissibility claim. This layer is therefore the authoritative Julia boundary for the currently declared and evaluable admissibility constraints, not a replacement for the later Hermiticity, symmetry, linear-independence, and completeness certificate, and not a statement that a numerical backend can solve the model.
 
-The parameter system is metadata-aware but does not impose a particular optimizer. Inverse methods can therefore use the same model-space and parameter-space definitions while selecting their own optimization or probabilistic backend.
+## Constraint-bearing parameter schemas
+
+Batch 9 promotes the existing `ParameterSpace` into the explicit real-coupling schema associated with a Hamiltonian family. `ParameterSpec` still describes one scalar coefficient, including bounds, units, a reference value, prior metadata, and the legacy `fixed` flag. The key invariant is
+
+$$\mathfrak G+\Theta(\mathfrak G)+\boldsymbol\theta\longrightarrow H_{\mathfrak G}(\boldsymbol\theta),$$
+
+where the Batch 8 structure $\mathfrak G$ defines the Hamiltonian topology, `ParameterSpace` represents the admissible coupling domain $\Theta(\mathfrak G)$, and `ParameterPoint` represents one concrete real coefficient vector $\boldsymbol\theta$. Parameter constraints do not decide whether the Hamiltonian structure is physically admissible and do not select a numerical solver.
+
+`FixedParameterConstraint`, `EqualParameterConstraint`, and `LinearParameterConstraint` express exact affine equality restrictions on named couplings. A fixed `ParameterSpec` is enforced as an implicit fixed-value constraint, and a degenerate bound `lower == upper` has the same effect. Ordinary lower/upper bounds remain inequalities. `parameter_constraint_report` evaluates bounds and equality constraints without constructing a model, while `valid_parameter_point` provides the Boolean form. Invalid `ParameterPoint` construction raises an error instead of creating an out-of-schema coefficient vector.
+
+Every `ParameterSpace` attached to a `HamiltonianSpace` also carries deterministic `ParameterBinding` objects. A binding associates a parameter name and basis index with the Batch 8 `StructuralSignature` of that basis direction. The binding therefore identifies what a coupling multiplies without folding the coupling value into structural identity. A basis direction may itself contain several canonical operator terms, so the binding targets the complete basis-direction structure rather than assuming one scalar parameter corresponds to one graph edge.
+
+The affine equality constraints can be exported as
+
+$$A\boldsymbol\theta=\mathbf b$$
+
+through `parameter_constraint_matrix`. `parameter_dof` reports $N_\theta-\mathrm{rank}(A)$; inequality bounds do not reduce this dimension unless they collapse to an equality. `free_parameter_indices` retains its pre-Batch-9 meaning of parameters not explicitly marked `fixed`, so constraint-aware inverse code should use `parameter_constraint_matrix` or `parameter_dof` when shared or linear relations matter.
+
+Exact representation transformations retain the parameter names, values, and equality constraints while `rebind_parameters` regenerates each `ParameterBinding` against the transformed Hamiltonian basis. Consequently the same physical coupling schema can survive an exact change of representation without incorrectly claiming that the source and target operator structures are identical.
+
+`with_parameters` treats the schema already attached to a `ManyBodyModel` as authoritative. Values from a foreign `ParameterPoint` are rebound and validated against the model's own schema before the Hamiltonian is rebuilt, preventing a caller from bypassing fixed, shared, or linear coupling constraints by constructing a looser parameter space elsewhere. The parameter layer remains optimizer-independent: posterior sampling, optimization, learned priors, and model comparison belong to later inverse machinery.
 
 ## `ManyBodyModel`
 
@@ -120,7 +156,7 @@ A useful conceptual form is
 
 $$\mathfrak M=(\mathfrak R,\hat H,\boldsymbol\theta,\mathcal O,\text{provenance}).$$
 
-`instantiate_model` builds a `ManyBodyModel` from a `GenerativeSpecification` and a parameter point. `with_parameters` changes parameter values while preserving the model definition. `with_provenance` appends construction history, and `remap_model` is used by representation transformations to create a mathematically related model while retaining traceability.
+`instantiate_model` builds a `ManyBodyModel` from a `HamiltonianSpace` and a parameter point or coefficient vector. Generated-model construction and rebuilt parameter points are checked against the attached physical specification before they are returned. `with_provenance` appends construction history, and `remap_model` is used by representation transformations to create a mathematically related model while retaining traceability.
 
 `with_truncation` attaches a numerical truncation without rewriting the physical model definition. This is the preferred way to make an infinite bosonic representation computationally realizable.
 
@@ -205,10 +241,36 @@ ReciprocalDecomposition
 decompose_reciprocal_vector
 ```
 
+### Canonical Hamiltonian structures
+
+```@docs
+AbstractModelStructure
+StructuralSupport
+StructuralTerm
+InteractionEdge
+InteractionGraph
+StructuralSignature
+ModelStructure
+representation_signature
+canonical_model_expression
+structure
+canonicalize_structure
+structural_signature
+interaction_graph
+structurally_equivalent
+structural_span_membership
+```
+
 ### Generative model spaces
 
 ```@docs
+AbstractModelSpace
+AdmissibilityCheck
+AdmissibilityReport
 PredicateAdmissibility
+admissibility_check
+admissibility_report
+admissibility_reasons
 GenerativeSpecification
 HamiltonianBasis
 HamiltonianSpace
@@ -220,8 +282,24 @@ hamiltonian_from_coefficients
 
 ```@docs
 ParameterSpec
+AbstractParameterConstraint
+FixedParameterConstraint
+EqualParameterConstraint
+LinearParameterConstraint
+ParameterConstraintCheck
+ParameterConstraintReport
+ParameterBinding
 ParameterSpace
 ParameterPoint
+parameter_constraints
+parameter_constraint_check
+parameter_constraint_report
+parameter_constraint_reasons
+valid_parameter_point
+parameter_constraint_matrix
+parameter_dof
+parameter_bindings
+parameter_binding
 with_parameters
 ManyBodyModel
 with_provenance

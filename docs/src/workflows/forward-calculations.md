@@ -167,7 +167,7 @@ The planner performs no analytic continuation. A Matsubara result remains a Mats
 
 ## Canonical stable demo
 
-`demos/high-level-forward-api.jl` is the executable reference for the `v0.0.8` high-level architecture. The script uses only public APIs and demonstrates the full stable sequence `ManyBodyModel + ObservableRequest -> plan_forward -> planning_report -> forward -> ForwardResult`, including a magnetic-neutron probe and a separate Gaussian instrument-resolution stage.
+`demos/high-level-forward-api.jl` is the executable reference for the high-level forward architecture. The script uses only public APIs and demonstrates the full stable sequence `ManyBodyModel + ObservableRequest -> plan_forward -> planning_report -> forward -> ForwardResult`, including a magnetic-neutron probe and a separate Gaussian instrument-resolution stage.
 
 ```bash
 julia --project=. demos/high-level-forward-api.jl

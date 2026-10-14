@@ -44,7 +44,7 @@ Local frames are particularly important for anisotropic magnets and local-axis I
 
 ## Long-range interactions
 
-`AbstractLongRangeInteraction` is the common abstraction for interactions whose numerical evaluation requires a summation strategy. v0.0.8 includes `CoulombInteraction` and `DipolarInteraction`.
+`AbstractLongRangeInteraction` is the common abstraction for interactions whose numerical evaluation requires a summation strategy. implemented interaction types include `CoulombInteraction` and `DipolarInteraction`.
 
 `AbstractInteractionSummation` separates the physical interaction from the summation method. `RealSpaceCutoff` truncates in real space; `EwaldSummation` performs a periodic Ewald decomposition. This separation lets the same physical interaction be evaluated with multiple numerical controls.
 
@@ -95,7 +95,7 @@ The resulting model remains in the spin representation unless the user explicitl
 
 ### Anderson impurity model
 
-`AndersonImpurityModel` constructs the finite single-orbital impurity Hamiltonian used by the v0.0.8 ED-DMFT implementation. The bath is spin degenerate: each finite bath orbital is represented for both spin components, and `impurity_bath_sites` exposes the associated impurity/bath indexing.
+`AndersonImpurityModel` constructs the finite single-orbital impurity Hamiltonian used by the normal-state ED-DMFT implementation. The bath is spin degenerate: each finite bath orbital is represented for both spin components, and `impurity_bath_sites` exposes the associated impurity/bath indexing.
 
 The [Embedding](embedding.md) layer normally constructs this model internally after fitting a `DiscreteBath`, but the specification is public so the same finite impurity problem can be built and solved directly.
 
@@ -112,6 +112,16 @@ The [Embedding](embedding.md) layer normally constructs this model internally af
 `HolsteinModel` combines fermions with local phonons through density--displacement coupling. `LongitudinalSpinBosonModel` provides the analogous longitudinal spin--boson coupling used by the spin-polaron transformation and hybrid spin/phonon studies.
 
 Hybrid models use composite state spaces and algebras so that factor identity is preserved rather than flattening all primitive operators into one global mode index.
+
+## Material-aware universal Hamiltonian generation
+
+Batch 10 adds the material-facing orchestration layer for the generalized Hamiltonian-space machinery. `material_crystallographic_structure` converts a three-dimensional material geometry, or an explicitly periodic three-dimensional supercell, into the backend-neutral crystallographic structure used by `Crystallography`. `material_generative_specification` then combines that geometry with an operator algebra, discovered or supplied space-group data, local state spaces, the symmetry action, and physical admissibility restrictions.
+
+`generate_hamiltonian_family` coordinates the existing crystallographic invariant generator with the Batch 7--9 layers and returns a `HamiltonianGenerationResult`. The result retains the material source, crystallographic dataset, `GenerativeSpecification`, generated `HamiltonianSpace`, canonical `ModelStructure`, and constraint-bearing `ParameterSpace` separately rather than flattening them into a second model hierarchy. A curated candidate set may provide `basis_labels` for the final independent invariant directions, giving the resulting parameters stable physical names instead of default `Phi_i` labels.
+
+The standard crystallographic action requires one symbolic site or mode index per crystallographic site. Multi-orbital, spinful-fermion, coordinate-component, or other richer internal-index conventions must supply the corresponding `symmetry_action` and `local_spaces` explicitly. When that site mapping is explicit, a declared `max_range` can be evaluated from minimum-image Cartesian distances in the material geometry instead of assigning geometric meaning to symbolic indices.
+
+The material-only route describes primitive-cell-indexed degrees of freedom. Use the periodic-supercell overload when translated sites must appear as distinct finite operator supports. See [Universal Hamiltonian Generation](../workflows/universal-hamiltonian-generation.md) for the complete workflow and boundary conditions.
 
 ## Model construction and validation
 
@@ -196,6 +206,15 @@ HarmonicPhononModel
 harmonic_model
 ```
 
+### Universal Hamiltonian generation
+
+```@docs
+HamiltonianGenerationResult
+material_crystallographic_structure
+material_generative_specification
+generate_hamiltonian_family
+```
+
 ### Validation
 
 ```@docs
@@ -205,3 +224,15 @@ validate_force_constants
 ## Additional exported model API
 
 The remaining exports cover the geometry primitives and accessors (`BravaisLattice`, lattice conversion functions, `BasisSite`, `Models.CrystalStructure`, `CrystalSite`, `Supercell`, site and reciprocal helpers, `Bond`, shell/coordination utilities), local-frame accessors, abstract interaction/result types and evaluation functions, atomic/material types and accessors, `AbstractHamiltonianSpec`, `HeisenbergModel`, `XXZModel`, `HubbardModel`, `LocalPhononModel`, `HolsteinModel`, `LongitudinalSpinBosonModel`, acoustic-sum-rule processing, and the lattice/bond/material validation helpers.
+
+## Structural search (Batch 11)
+
+`StructuralFamily` partitions an existing finite Hermitian invariant basis into `StructuralUnit`s. `StructuralSelection` retains complete symmetry-allowed basis directions and provides a child `HamiltonianSpace`, `ModelStructure`, and canonical identity. `structural_transition`, `structural_neighbors`, `enumerate_structures`, and `model_space_hierarchy` define the legal within-family search graph without assigning model probabilities or changing the generative physical assumptions.
+
+`structural_coordinate_map` embeds or restricts nested selected-basis coefficient vectors. `embed_parameters`, `project_parameters`, and `parameter_subspace` preserve omitted-coefficient-zero semantics and parent equality constraints. Structural selection never assumes a solver or numerical truncation; the generated-model-to-forward closure remains Batch 12 work. See [universal Hamiltonian generation and structural search](../workflows/universal-hamiltonian-generation.md).
+
+## Batch 12 structural selection and forward closure
+
+`instantiate_model(selection, representation, values)` now accepts a `StructuralSelection` directly, preserves complete invariant directions, validates its child parameter schema against all parent equality constraints, and retains structural provenance. `validate_structural_representation` verifies the unambiguous spin, fermion, and boson local-space relationships without attempting to invent component-aware or composite symmetry actions.
+
+`structural_id` and `describe` expose deterministic finite-domain identifiers and neutral structural descriptions. `reconstruct_selection` and `reconstruct_model` validate a proposed family, selection, and coefficient payload entirely in Julia. The forward execution helpers `prepare_forward`, `forward_parameters`, and `forward_batch` reuse the existing `ForwardProblem` pipeline without introducing shared mutable numerical caches. See [Structural Forward Closure](../workflows/structural-forward-closure.md).

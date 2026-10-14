@@ -6,15 +6,15 @@ CurrentModule = Phundamental.Embedding
 
 `Phundamental.Embedding` implements the first self-consistent many-body embedding layer in Phundamental.jl: normal-state, single-site, single-orbital dynamical mean-field theory (DMFT) with a finite exact-diagonalization impurity bath. The implementation is built directly on the typed Green-function objects in [Greens](greens.md), the Hamiltonian models in [Models](models.md), finite-temperature states in [Thermodynamics](thermodynamics.md), and the solver protocol in [Solvers](solvers.md).
 
-The v0.0.8 validated loop is
+The validated normal-state ED-DMFT loop is
 
 $$\Sigma(i\omega_n)\rightarrow G_{\mathrm{loc}}(i\omega_n)\rightarrow\mathcal G_0(i\omega_n)\rightarrow\Delta(i\omega_n)\rightarrow\text{finite ED bath}\rightarrow G_{\mathrm{imp}}(i\omega_n)\rightarrow\Sigma_{\mathrm{new}}(i\omega_n).$$
 
 The embedding layer keeps the lattice problem, Weiss field, bath discretization, impurity solve, self-energy mixing, and independent closure verification as separate steps. This makes convergence failures diagnosable rather than reducing the calculation to a single opaque iteration function.
 
-## Scope of v0.0.8
+## Validated implementation scope
 
-The stable v0.0.8 implementation assumes a scalar local self-energy, one correlated impurity orbital, spin-degenerate paramagnetic normal-state ED, and single-site self-consistency. The Green-function layer is matrix-valued and supports Nambu indexing, but superconducting/Nambu DMFT is not part of the validated embedding scope.
+The validated implementation assumes a scalar local self-energy, one correlated impurity orbital, spin-degenerate paramagnetic normal-state ED, and single-site self-consistency. The Green-function layer is matrix-valued and supports Nambu indexing, but superconducting/Nambu DMFT is not part of the validated embedding scope.
 
 The package does not perform analytic continuation as part of the DMFT fixed-point loop. Matsubara convergence and real-frequency continuation are different numerical problems and remain separated.
 
@@ -26,7 +26,7 @@ $$\Delta_{\mathrm{ED}}(z)=\sum_p\frac{|V_p|^2}{z+\mu-\epsilon_p}.$$
 
 `hybridization_function` evaluates this expression on a `FermionicMatsubaraAxis` and returns a typed `HybridizationFunction`.
 
-The bath is spin degenerate in the v0.0.8 impurity model. Each stored bath orbital is realized for both spin channels by `AndersonImpurityModel` when the impurity Hamiltonian is built.
+The bath is spin degenerate in the finite-bath impurity model. Each stored bath orbital is realized for both spin channels by `AndersonImpurityModel` when the impurity Hamiltonian is built.
 
 ## Bath fitting
 
@@ -40,7 +40,7 @@ The fitter uses bounded damping, rejects nonfinite trial states before entering 
 
 ### Particle--hole-constrained fitting
 
-At exact half filling, an unconstrained finite bath can drift along a weakly constrained particle--hole-asymmetric direction even when the physical solution is symmetric. v0.0.8 therefore adds `symmetry=:particle_hole`.
+At exact half filling, an unconstrained finite bath can drift along a weakly constrained particle--hole-asymmetric direction even when the physical solution is symmetric. the implementation therefore provides `symmetry=:particle_hole`.
 
 For an even bath, the constrained parameterization imposes pairs
 
@@ -82,7 +82,7 @@ The implementation stores independent task results in canonical slots and perfor
 OPENBLAS_NUM_THREADS=1 julia -t auto --project=. benchmarks/dmft/ed-dmft-scaling-benchmark.jl
 ```
 
-The v0.0.8 scaling campaign verified serial/threaded equivalence and observed substantial speedup for the larger finite baths used by DMFT.
+The recorded scaling campaign verified serial/threaded equivalence and observed substantial speedup for the larger finite baths used by DMFT.
 
 ## Lattice embeddings
 
@@ -106,7 +106,7 @@ $$\mathcal G_0^{-1}(i\omega_n)=G_{\mathrm{loc}}^{-1}(i\omega_n)+\Sigma(i\omega_n
 
 `weiss_green` evaluates this relation using matrix solves and returns a `NonInteractingGreenFunction`.
 
-For the scalar impurity used in v0.0.8,
+For the scalar impurity in the validated ED-DMFT calculations,
 
 $$\Delta(z)=z+\mu-\epsilon_d-\mathcal G_0(z)^{-1}.$$
 
@@ -155,7 +155,7 @@ The fixed-point iteration performs the following steps:
 
 A small iterative update is necessary but not sufficient for a validated result. With `verify_closure=true`, the solver performs an independent impurity solve at the same accepted self-energy and checks that the recomputed map closes within tolerance.
 
-A key v0.0.8 rule is that the self-energy that satisfied the iterative criterion is the point tested by the independent closure calculation. The solver does not first replace it by the next candidate and then test a different point.
+A key fixed-point convergence rule is that the self-energy that satisfied the iterative criterion is the point tested by the independent closure calculation. The solver does not first replace it by the next candidate and then test a different point.
 
 If an iterative residual falls below tolerance but the independent closure residual remains above tolerance and iteration budget remains, the run resumes from the accepted state and retries closure when a later iterate again becomes eligible. `:closure_failed` is reserved for a run that exhausts its budget after entering this closure-retry sequence.
 
@@ -209,9 +209,9 @@ $$\operatorname{Im}\Sigma(i\omega)\approx(1-1/Z)\omega.$$
 
 `validate_dmft_result` collects convergence history, closure, causality, bath quality, particle--hole symmetry, Bethe self-consistency, noninteracting limits, and atomic-limit comparisons when those checks are applicable.
 
-## v0.0.8 physical-regime benchmark
+## Physical-regime benchmark
 
-The final v0.0.8 half-filled Bethe benchmark uses $\beta=32$, $D=\sqrt2$, 128 positive Matsubara frequencies, adaptive mixing, particle--hole-constrained bath fitting, and a benchmark-only iteration ceiling of 320. The general `DMFTSolver` default iteration budget remains 100.
+The recorded half-filled Bethe benchmark uses $\beta=32$, $D=\sqrt2$, 128 positive Matsubara frequencies, adaptive mixing, particle--hole-constrained bath fitting, and a benchmark-only iteration ceiling of 320. The general `DMFTSolver` default iteration budget remains 100.
 
 All tested points converged under an independent $10^{-7}$ closure criterion:
 
@@ -241,7 +241,7 @@ For $\beta=32$, $U=3$, $\mu=1.5$, $D=\sqrt2$, and 128 Matsubara frequencies, bot
 
 The larger bath improves both the inverse-Weiss fitting distance and the direct bath residual. The benchmark source intentionally does not treat visually digitized figure points as exact targets.
 
-A CT-QMC comparison, discussed in the finite-temperature ED literature, is not implemented in v0.0.8 and remains an external validation target rather than a claimed package result.
+A CT-QMC comparison, discussed in the finite-temperature ED literature, is not implemented in the documented ED-DMFT workflow and remains an external validation target rather than a claimed package result.
 
 ## Related modules
 

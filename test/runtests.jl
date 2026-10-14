@@ -1,6 +1,12 @@
 using Phundamental
 
 include("generalized-api-validation.jl")
+include("model-space-admissibility-validation.jl")
+include("model-structure-validation.jl")
+include("parameter-schema-validation.jl")
+include("universal-hamiltonian-generation-validation.jl")
+include("structural-search-validation.jl")
+include("structural-forward-closure-validation.jl")
 include("high-level-forward-api-validation.jl")
 include("dynamical-correlation-api-validation.jl")
 include("composite-response-api-validation.jl")

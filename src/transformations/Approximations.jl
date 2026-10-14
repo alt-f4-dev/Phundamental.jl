@@ -77,7 +77,12 @@ function apply_approximation(A::ModelSpaceProjection, model::ManyBodyModel)
     approximated = ManyBodyModel(model.representation, retained; parameters=model.parameters, observables=model.observables,
                                  provenance=history, specification=A.target_space.specification, model_space=A.target_space,
                                  parameterization=rebind_parameters(model.parameterization, A.target_space))
-    validation = Dict{Symbol,Bool}(:applicable => true, :admissible => admissible(A.target_space, retained))
+    report = admissibility_report(approximated)
+    validation = Dict{Symbol,Bool}(
+        :applicable => true,
+        :admissible => report.admissible,
+        :admissibility_complete => report.complete,
+    )
     return ApproximationResult(approximated, A, A.certificate, retained, discarded, error, validation)
 end
 

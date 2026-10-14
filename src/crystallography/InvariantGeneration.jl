@@ -209,7 +209,12 @@ function generate_invariant_basis(specification::GenerativeSpecification, struct
             rejected_body_order += 1
             continue
         end
-        if !admissible(specification, canonical_candidate)
+        candidate_report = admissibility_report(specification, canonical_candidate)
+        if !candidate_report.complete
+            reasons = join(admissibility_reasons(candidate_report), "; ")
+            throw(ArgumentError("candidate has unevaluated physical admissibility criteria: $(reasons)"))
+        end
+        if !candidate_report.admissible
             rejected_admissibility += 1
             continue
         end
@@ -228,22 +233,52 @@ function (generator::CrystallographicGenerator)(specification::GenerativeSpecifi
     return generate_invariant_basis(specification, generator.structure, generator.candidates; options=generator.options, labels=generator.labels)
 end
 
-function crystallographic_specification(structure::CrystalStructure, local_spaces, algebra::AbstractOperatorAlgebra; symmetry_action=standard_symmetry_action, admissibility_conditions=(), max_range=nothing, max_body_order=nothing, options::CrystallographyOptions=CrystallographyOptions(), metadata=Dict{Symbol,Any}())
+function crystallographic_specification(
+    structure::CrystalStructure,
+    local_spaces,
+    algebra::AbstractOperatorAlgebra;
+    symmetry_action=standard_symmetry_action,
+    admissibility_conditions=(),
+    max_range=nothing,
+    max_body_order=nothing,
+    range_evaluator=nothing,
+    options::CrystallographyOptions=CrystallographyOptions(),
+    metadata=Dict{Symbol,Any}(),
+)
     dataset = discover_symmetry(structure; options=options)
     orbits = isempty(dataset.crystallographic_orbits) ? Tuple(structure.labels) : Tuple(dataset.crystallographic_orbits)
     merged_metadata = Dict{Symbol,Any}(metadata)
     merged_metadata[:crystal_structure] = structure
     merged_metadata[:crystallographic_backend] = :spglib
     merged_metadata[:crystallography_options] = options
-    return GenerativeSpecification(dataset, orbits, local_spaces, algebra, symmetry_action; admissibility_conditions=admissibility_conditions, max_range=max_range, max_body_order=max_body_order, metadata=merged_metadata)
+    return GenerativeSpecification(
+        dataset,
+        orbits,
+        local_spaces,
+        algebra,
+        symmetry_action;
+        admissibility_conditions=admissibility_conditions,
+        max_range=max_range,
+        max_body_order=max_body_order,
+        range_evaluator=range_evaluator,
+        metadata=merged_metadata,
+    )
 end
 
-function generate_crystallographic_hamiltonian_space(specification::GenerativeSpecification, structure::CrystalStructure; candidates=nothing, max_operator_degree=nothing, options=nothing, metadata=Dict{Symbol,Any}())
+function generate_crystallographic_hamiltonian_space(
+    specification::GenerativeSpecification,
+    structure::CrystalStructure;
+    candidates=nothing,
+    max_operator_degree=nothing,
+    options=nothing,
+    labels=nothing,
+    metadata=Dict{Symbol,Any}(),
+)
     order = isnothing(specification.max_body_order) ? 2 : specification.max_body_order
     resolved_options = _resolved_crystallography_options(specification, options)
     resolved_degree = isnothing(candidates) ? (isnothing(max_operator_degree) ? _default_operator_degree(specification.algebra, order) : Int(max_operator_degree)) : nothing
     candidate_basis = isnothing(candidates) ? enumerate_operator_candidates(specification.algebra; max_body_order=order, max_operator_degree=resolved_degree) : collect(candidates)
-    generator = CrystallographicGenerator(structure, candidate_basis; options=resolved_options)
+    generator = CrystallographicGenerator(structure, candidate_basis; options=resolved_options, labels=labels)
     space_metadata = Dict{Symbol,Any}(metadata)
     space_metadata[:generation_backend] = :spglib_fixed_space
     space_metadata[:candidate_source] = isnothing(candidates) ? :automatic_enumeration : :supplied

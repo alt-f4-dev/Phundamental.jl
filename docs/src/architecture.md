@@ -4,7 +4,7 @@ Phundamental is organized around semantic layers rather than around a single sol
 
 $$\text{model}\rightarrow\text{representation}\rightarrow\text{transformation}\rightarrow\text{solver}\rightarrow\text{observable}\rightarrow\text{probe}\rightarrow\text{resolution}$$
 
-This architecture is the main compatibility contract of v0.0.8: changing a numerical backend must not silently change the physical representation, and applying a representation transformation must not be described as a mere storage optimization.
+This architecture is a central compatibility contract: changing a numerical backend must not silently change the physical representation, and applying a representation transformation must not be described as a mere storage optimization.
 
 ## Dependency order
 
@@ -30,6 +30,56 @@ The `Models` layer constructs material-aware `ManyBodyModel` objects from geomet
 
 This separation permits the same solver API to act on models produced from direct symbolic construction, crystallographic invariant generation, or high-level material/geometry constructors.
 
+## Canonical model structure
+
+Batch 8 inserts a canonical structural layer between the physical model-space definition and numerical execution. A `ModelStructure` records coefficient-independent canonical operator terms, their local supports, an interaction hypergraph, and a physical representation signature.
+
+$$\text{model space}\rightarrow\text{canonical structure}\rightarrow\text{parameterization}\rightarrow\text{forward execution}$$
+
+Structural identity is intentionally representation-sensitive. Two Hamiltonians are `structurally_equivalent` only when their canonical operator topology agrees in the same physical representation context. Representation names and numerical truncations do not define that context, but state space, algebra, basis, exact constraints, gauge metadata, reference state, and ordering do.
+
+An exact representation transformation defines a different relation. If $T$ is exact, then $H$ and $T(H)$ may represent the same physical theory while having different structural signatures, particularly for nonlocal maps such as Jordan--Wigner. The transformation layer therefore exposes `structurally_related(source, target, T)` rather than redefining structural equality across representations.
+
+This distinction preserves locality and interaction topology for later structural inference while retaining exact transformation provenance.
+
+## Constraint-bearing parameter schemas
+
+Batch 9 makes the continuous coupling domain an explicit layer between canonical structure and model instantiation. The existing `ParameterSpace` is the schema object; it is not replaced by a parallel `ParameterSchema` hierarchy.
+
+$$\mathfrak G\longrightarrow\Theta(\mathfrak G)\longrightarrow\boldsymbol\theta\longrightarrow H_{\mathfrak G}(\boldsymbol\theta)$$
+
+A `ParameterBinding` associates each named scalar coefficient with one Hamiltonian-basis direction and the Batch 8 structural signature of that direction. Parameter values therefore remain outside structural identity while the schema still records exactly what each coupling multiplies. This is the intended Julia boundary for later Python parameter inference.
+
+`ParameterSpace` can impose fixed values, shared/equal couplings, and general linear equality constraints. These relations define an affine manifold
+
+$$A\boldsymbol\theta=\mathbf b$$
+
+inside the ordinary bound box. `parameter_constraint_report` evaluates a concrete point, `parameter_constraint_matrix` exports the affine equality system, and `parameter_dof` reports its dimension. The existing `free_parameter_indices` function remains backward compatible and only reflects the `fixed` flag; it is not redefined to solve arbitrary equality constraints.
+
+The parameter schema is distinct from physical admissibility and computational compatibility:
+
+$$\boxed{\mathfrak G\in\mathcal M}\qquad\boxed{\boldsymbol\theta\in\Theta(\mathfrak G)}\qquad\boxed{\text{solver supports }H_{\mathfrak G}(\boldsymbol\theta)}$$
+
+These are three different questions. A structurally admissible model can have an invalid parameter point, and a physically valid parameterized model can still lack a compatible numerical route.
+
+Exact representation transformations preserve parameter names, values, and equality constraints while regenerating structural bindings against the transformed Hamiltonian basis. This keeps the physical coupling schema continuous across an exact map without collapsing representation-local structural identity.
+
+## Material- and crystallography-aware Hamiltonian generation
+
+Batch 10 makes crystallography an explicit upstream generator constraint rather than metadata attached after structural construction. Material geometry is converted to the backend-neutral crystallographic structure, the space-group action defines symmetry-invariant operator combinations, Batch 7 admissibility filters the physical candidate space, Batch 8 records the resulting canonical structure, and Batch 9 attaches the continuous coupling schema.
+
+$$\text{Material / CrystalStructure}\rightarrow\text{Crystallography}\rightarrow\mathcal G\rightarrow\mathcal H(\mathcal G)\rightarrow\mathfrak G\rightarrow\Theta(\mathfrak G).$$
+
+`HamiltonianGenerationResult` retains each stage separately: the source material and optional periodic supercell, crystallographic structure and dataset, `GenerativeSpecification`, `HamiltonianSpace`, `ModelStructure`, and `ParameterSpace`. The generator therefore coordinates existing authoritative objects instead of creating a parallel model hierarchy.
+
+The standard crystallographic operator action has an explicit site-index contract. One operator index must correspond to one crystallographic site for the automatically supported spin, boson, fermion, and Majorana actions. Richer orbital or internal-component conventions must provide a custom symmetry action rather than allowing the generator to guess an index map. Coordinate/momentum primitives likewise require a custom action because their bare mode indices do not encode Cartesian vector components.
+
+When a material-derived specification declares `max_range`, Batch 10 can supply the Batch 7 `range_evaluator` directly from crystallographic geometry. The interaction range of a canonical term is the maximum minimum-image Cartesian separation among its distinct site supports. This preserves the rule that symbolic indices themselves never imply physical distance.
+
+The material-only route addresses primitive-cell-indexed degrees of freedom. An explicit fully periodic `Supercell` may instead be supplied when translated sites must occur as distinct finite operator indices. Open clusters are not passed to Spglib as periodic cells because that would silently change their boundary conditions.
+
+Batch 10 stops at Hamiltonian-family construction and optional `ManyBodyModel` instantiation. It does not search structural neighborhoods, optimize parameters, choose numerical solvers, or execute observables. Those responsibilities remain separated for Batches 11--12 and the later Python inverse layer.
+
 ## Transformations versus approximations versus backends
 
 Three concepts that are frequently conflated are represented separately.
@@ -48,15 +98,27 @@ Not every mathematically valid representation is immediately suitable for a fini
 
 This prevents a transformation from being declared numerically usable merely because the symbolic map succeeds. For example, an unconstrained bosonic Fock space may be a valid exact target representation while still requiring an explicit numerical cutoff for matrix realization.
 
+## Physical model-space admissibility
+
+The Foundation model-space layer owns the declared physical constraints used to decide whether a symbolic Hamiltonian is admissible under a `GenerativeSpecification`. `AbstractModelSpace` is the public root of this physical layer, with `HamiltonianSpace` as the current finite-dimensional implementation. `admissibility_report` produces an inspectable `AdmissibilityReport` containing algebra compatibility, body-order, physical-range, and custom-condition checks. The report distinguishes a rejected criterion from a criterion that is declared but cannot yet be evaluated. Symmetry invariance, Hermiticity, linear independence, and generator completeness remain separate certification questions. Batch 10 now records the crystallographic fixed-space generator evidence for generated families without broadening the meaning of the Batch 7 admissibility report.
+
+$$\boxed{\text{Batch-7 admissibility}=\text{evaluable declared model-space constraints}}$$
+
+A physical range cutoff is meaningful only when the specification can evaluate physical range. `max_range` therefore requires an explicit `range_evaluator`; Foundation never converts site labels, mode indices, or operator support counts into distances implicitly. This keeps geometric assumptions outside the symbolic index convention. Batch 10 supplies a geometry-aware evaluator only when the material/crystallographic site-index mapping is explicit.
+
+Generated Hamiltonian spaces are audited before `generate_hamiltonian_space` returns them, and generated or rebuilt parameterized models are checked against their attached space. A `HamiltonianSpace` report also carries a `:basis_span` check. Batch 8 now certifies numeric canonical linear-span membership after exact algebraic rewriting; coefficients that cannot be reduced to numeric linear coordinates remain explicitly unresolved. Direct `HamiltonianSpace` construction remains available for imported or partially certified bases so an invalid or incomplete space can be inspected rather than being impossible to represent. The resulting admissibility audit is deliberately narrower than a future model-space certificate: it does not yet prove Hermiticity, linear independence, symmetry completeness, or completeness of the candidate-generating procedure.
+
+Exact representation transformations reconstruct a target `GenerativeSpecification` in the target algebra. Representation-specific physical-range evaluators are not assumed to survive that map automatically; if a transformed specification still declares `max_range` but has no valid target evaluator, its range admissibility remains explicitly incomplete rather than being silently inferred.
+
 ## Request requirements and solver compatibility
 
 Typed observable requests declare the physical output they require through `RequestRequirements`. Numerical methods are checked against the working `ManyBodyModel` and request through `SolverCompatibility`. These objects answer different questions from model-space admissibility: request requirements describe the desired observable, while solver compatibility describes whether the current implementation has a computational route for that model/request combination.
 
 $$\boxed{\text{physical admissibility}\neq\text{current computational compatibility}}$$
 
-A future universal Hamiltonian generator may therefore produce physically admissible models for which every current solver reports incompatibility. Numerical limitations must not feed backward into the definition of the physical hypothesis space. Likewise, an approximate method such as linear spin-wave theory remains explicitly labeled as an approximation even when it is computationally compatible with a request.
+The Batch 10 universal Hamiltonian generator may therefore produce physically admissible models for which every current solver reports incompatibility. Numerical limitations must not feed backward into the definition of the physical hypothesis space. Likewise, an approximate method such as linear spin-wave theory remains explicitly labeled as an approximation even when it is computationally compatible with a request.
 
-Batch 5 extends this compatibility contract to methods whose numerical problem cannot be reconstructed from a finite `ManyBodyModel` alone. `DMFTForwardContext`, `LadderDGAForwardContext`, and `NLCEForwardContext` supply explicit computational context without becoming part of physical Hamiltonian admissibility. Batch 6 may rank fully specified routes, but only under an explicit `ForwardExecutionPolicy`; the method contexts themselves still neither rank methods nor authorize approximations.
+Batch 5 extends this compatibility contract to methods whose numerical problem cannot be reconstructed from a finite `ManyBodyModel` alone. `DMFTForwardContext`, `LadderDGAForwardContext`, and `NLCEForwardContext` supply explicit computational context without becoming part of physical Hamiltonian admissibility. Batch 6 ranks fully specified routes only under an explicit `ForwardExecutionPolicy`; the method contexts themselves still neither rank methods nor authorize approximations.
 
 The high-level DMFT and ladder-DΓA routes construct solver-specific embedding problems from a direct single-band `HubbardModel` plus explicit lattice/frequency context. The high-level NLCE route constructs connected cluster models from the source material, reference cluster, and Hamiltonian specification, then recursively evaluates the same custom observable request on each cluster through `ForwardProblem`. The raw embedding or NLCE result remains in `ForwardResult.solution`, preserving convergence and method provenance separately from the requested intrinsic observable.
 
@@ -179,3 +241,17 @@ The observable layer remains method-independent. A susceptibility, spectral func
 The three correlation-scale branches use different validation hierarchies. NLCE requires exact graph/isomorphism checks, independent embedding-size stability, bare-order convergence, optional resummation diagnostics, and reproduction of published cluster-count or thermodynamic-limit benchmarks. Diagrammatic DMFT requires a converged local DMFT reference, exact Bethe-Salpeter closure on controlled test tensors, explicit inversion conditioning, frequency-box and momentum-grid convergence, and comparison with independent published Hubbard-model benchmarks where numerical reference data are available.
 
 Software tests and documentation builds establish API consistency but are not by themselves evidence of physical accuracy. Benchmark provenance, normalization conventions, model parameters, and numerical cutoffs must remain attached to every research validation result.
+
+## Batch 11: finite structural search over crystallographic invariants
+
+Batch 11 turns each finite Batch 10 `HamiltonianSpace` into a `StructuralFamily` of indivisible symmetry-complete `StructuralUnit`s. These units contain whole invariant basis directions rather than individual canonical monomials. A `StructuralSelection` inherits the original physical specification and exposes a selected child Hamiltonian space, canonical operator support structure, and stable within-family signature. Structural operations include additions, removals, replacements, constrained one-move neighborhoods, bounded exhaustive enumeration, and within-family Hasse hierarchies.
+
+$$\mathcal H(\mathcal G)\longrightarrow\{\mathcal H'_1,\mathcal H'_2,\ldots\},\qquad H(\mathbf z,\boldsymbol\theta)=\sum_a z_a\theta_a\Phi_a.$$
+
+Each omitted invariant direction has parent coefficient exactly zero, independent of whether a retained direction's numerical coefficient happens to vanish. Parent bounds, fixed parameters, and supported affine equalities survive structural selection through explicit zero-substitution; incompatible parameter subspaces are rejected. A structurally admissible choice remains distinct from a valid parameter point and from the existence of a compatible numerical solver. The [universal generation and structural-search workflow](workflows/universal-hamiltonian-generation.md) describes this interface in detail.
+
+## Batch 12: Julia-authoritative structural-to-forward closure
+
+The Batch 10 material/crystallographic generator defines the finite invariant Hamiltonian family, Batch 11 defines symmetry-complete subspaces, and Batch 12 composes structural instantiation with the existing numerical forward calculation. Julia owns physical admissibility, operator construction, parameter constraints, representation validation, numerical solutions, intrinsic observables, probe contractions, and resolution effects. An external Python inverse algorithm may search deterministic structural identifiers and numerical parameter values but must not rebuild or authenticate physical Hamiltonians independently.
+
+The machine-readable `describe` interface exposes versioned neutral descriptions and SHA-based structural identity, while `reconstruct_model` resolves submitted selection IDs only against a live certified Julia `StructuralFamily`. Arbitrary user-defined callback semantics remain tied to their Julia implementation and must not be inferred from serialized metadata. Prepared evaluations do not reuse mutable solver state between parameter points.

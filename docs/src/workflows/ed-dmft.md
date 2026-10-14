@@ -1,6 +1,6 @@
 # ED-DMFT
 
-The v0.0.8 embedding workflow implements normal-state, single-site, single-orbital dynamical mean-field theory with a finite exact-diagonalization bath. This page gives the recommended construction, convergence, validation, and parameter-sweep procedure.
+The validated embedding workflow implements normal-state, single-site, single-orbital dynamical mean-field theory with a finite exact-diagonalization bath. This page gives the recommended construction, convergence, validation, and parameter-sweep procedure.
 
 ## Mathematical loop
 
@@ -78,7 +78,7 @@ At exact particle--hole symmetry with an even bath, use
 fit_options = BathFitOptions(maxiter=200, tol=1e-10, weight_power=1.0, multistart=3, symmetry=:particle_hole)
 ```
 
-The constrained parameterization enforces bath energies in $\mu\pm\xi_j$ pairs and equal hybridization magnitudes. The v0.0.8 half-filled validation benchmarks use this mode because it removes an otherwise weak particle--hole-asymmetric direction in the finite-bath fit.
+The constrained parameterization enforces bath energies in $\mu\pm\xi_j$ pairs and equal hybridization magnitudes. The recorded half-filled validation benchmarks use this mode because it removes an otherwise weak particle--hole-asymmetric direction in the finite-bath fit.
 
 Do not enable the constraint away from a physically particle--hole-symmetric point.
 
@@ -104,7 +104,7 @@ Simple problems may use fixed linear mixing:
 mixing = LinearMixing(0.5)
 ```
 
-For interaction sweeps and strong-coupling points, the validated v0.0.8 benchmarks use
+For interaction sweeps and strong-coupling points, the validated benchmark calculations use
 
 ```julia
 mixing = AdaptiveLinearMixing()
@@ -118,7 +118,7 @@ The adaptive method remains a convex linear mixture. It reduces the mixing fract
 solver = DMFTSolver(impurity_solver=impurity_solver, mixing=mixing, tol=1e-7, maxiter=320, verify_closure=true, convergence_policy=DMFTConvergencePolicy())
 ```
 
-The `maxiter=320` value above is the conservative benchmark budget used to close the strongest v0.0.8 physical-regime point. It is not the package-wide default; `DMFTSolver()` defaults to 100 iterations.
+The `maxiter=320` value above is the conservative benchmark budget used to close the strongest-coupling point in the documented physical-regime benchmark. It is not the package-wide default; `DMFTSolver()` defaults to 100 iterations.
 
 The independent closure check should normally remain enabled for validation and scientific benchmark runs.
 
@@ -201,7 +201,7 @@ The bath-discretization residual measures how closely a finite rational function
 
 A run can be self-consistent with a visibly finite bath residual because ED-DMFT is solving the self-consistency problem within a restricted finite-bath manifold. Bath-size convergence therefore needs to be studied separately.
 
-The v0.0.8 physical-regime benchmark compares $N_b=2$ and $N_b=4$ and reports the low-frequency self-energy change as `Sigma_dNb`.
+The recorded physical-regime benchmark compares $N_b=2$ and $N_b=4$ and reports the low-frequency self-energy change as `Sigma_dNb`.
 
 ## Parameter continuation
 
@@ -227,7 +227,7 @@ A minimal finite-bath study should compare at least two bath sizes at identical 
 
 Useful quantities are the direct bath-fit residual, low-frequency self-energy difference, density, double occupancy, causality, particle--hole residual when applicable, and the final independent closure residual.
 
-For half-filled v0.0.8 Bethe tests, the $N_b=4$ bath gives a substantially better representation of the Weiss field than $N_b=2$ at the tested intermediate and strong couplings.
+For the recorded half-filled Bethe tests, the $N_b=4$ bath gives a substantially better representation of the Weiss field than $N_b=2$ at the tested intermediate and strong couplings.
 
 ## Quasiparticle-weight diagnostic
 
@@ -268,9 +268,9 @@ OPENBLAS_NUM_THREADS=1 julia -t auto --project=. benchmarks/dmft/caffarel-krauth
 
 implements the finite-temperature ED-DMFT comparison to Caffarel and Krauth (1994) using the package's $D=\sqrt2$ convention. It reports the finite-bath inverse-Weiss distance, direct bath residual, independent closure, low-frequency $Z$ diagnostic, density, and iteration count.
 
-The benchmark intentionally does not treat digitized figure values as exact targets. It validates equations, trends, finite-bath improvement, and self-consistent closure. A CT-QMC comparison remains outside the v0.0.8 implemented validation suite.
+The benchmark intentionally does not treat digitized figure values as exact targets. It validates equations, trends, finite-bath improvement, and self-consistent closure. A CT-QMC comparison remains outside the documented validation suite.
 
-## v0.0.8 validated strong-coupling point
+## Validated strong-coupling point
 
 The most difficult final physical-regime case was $U=4.8$, $N_b=4$, $\beta=32$, and $D=\sqrt2$. With adaptive mixing, a particle--hole-constrained bath, and the unchanged $10^{-7}$ convergence criterion, it converged in 194 iterations with independent closure residual $2.870\times10^{-8}$ and bath residual $1.179\times10^{-3}$.
 
@@ -278,11 +278,11 @@ This point motivated retaining an iteration budget larger than the observed conv
 
 ## Scope limits
 
-v0.0.8 does not claim superconducting/Nambu ED-DMFT, multi-orbital DMFT, cluster DMFT, continuous-time QMC impurity solving, analytic continuation, or real-frequency self-consistency. The abstractions were designed so additional impurity solvers and matrix-valued embeddings can be added later without redefining the stable normal-state objects.
+The validated implementation does not claim superconducting/Nambu ED-DMFT, multi-orbital DMFT, cluster DMFT, continuous-time QMC impurity solving, analytic continuation, or real-frequency self-consistency. The abstractions were designed so additional impurity solvers and matrix-valued embeddings can be added later without redefining the stable normal-state objects.
 
 ## See also
 
 - [Embedding](../modules/embedding.md) for complete type and diagnostic documentation.
 - [Greens](../modules/greens.md) for Matsubara, Dyson, Nambu, and causality conventions.
 - [Thermodynamics](../modules/thermodynamics.md) for exact finite-temperature impurity states.
-- [Validation](../validation.md) for the final v0.0.8 numerical evidence and literature references.
+- [Validation](../validation.md) for the recorded numerical evidence and literature references.

@@ -6,7 +6,7 @@ CurrentModule = Phundamental.Greens
 
 `Phundamental.Greens` provides finite-temperature imaginary-frequency propagators as explicit, matrix-valued objects. The module defines fermionic Matsubara axes, exact Lehmann evaluation, normal and Nambu Green functions, noninteracting/Weiss propagators, self-energies, hybridization functions, Dyson reconstruction, high-frequency moments, and symmetry/causality diagnostics.
 
-The abstraction introduced in v0.0.8 is intentionally broader than a solver-specific array of complex numbers: a propagator carries its frequency axis, matrix structure, component labels, and metadata, so Dyson relations and validation can be applied independently of the numerical method that produced it.
+The Green-function abstraction is intentionally broader than a solver-specific array of complex numbers: a propagator carries its frequency axis, matrix structure, component labels, and metadata, so Dyson relations and validation can be applied independently of the numerical method that produced it.
 
 ## Fermionic Matsubara axis
 
@@ -82,7 +82,7 @@ through the same exact Lehmann machinery. `nambu_index` retrieves the stored Nam
 Nambu is deliberately represented as propagator index structure rather than as a Foundation `Representation`. A Hamiltonian representation describes the state space and operator algebra; Nambu doubling describes how propagator components are arranged.
 
 !!! note
-    The v0.0.8 Green-function layer supports Nambu propagators and their symmetry checks, but the validated ED-DMFT implementation is normal-state and does not yet provide superconducting/Nambu impurity self-consistency.
+    The Green-function layer supports Nambu propagators and their symmetry checks, but the validated ED-DMFT implementation is normal-state and does not yet provide superconducting/Nambu impurity self-consistency.
 
 ## Dyson relations
 
@@ -136,7 +136,7 @@ $$[X(i\omega)-C]+[X(-i\omega)-C]=0.$$
 
 For a particle--hole-symmetric Green function, `center=0`. For a half-filled Hubbard self-energy, the center can be the Hartree value $U/2$.
 
-This diagnostic is used by the ED-DMFT validation layer and helped motivate the exact particle--hole-constrained finite bath introduced in v0.0.8.
+This diagnostic is used by the ED-DMFT validation layer and helped motivate the exact particle--hole-constrained finite bath used by the normal-state ED-DMFT implementation.
 
 ## Nambu symmetry
 
@@ -152,7 +152,7 @@ As with other positive/negative-frequency identities, the axis must contain pair
 
 `validate_green_function` returns a dictionary containing the core diagnostics applicable to the supplied Green function. It always checks causality and the zeroth high-frequency moment; it adds Matsubara conjugation when paired frequencies are present and Nambu diagnostics when the object carries Nambu metadata.
 
-The v0.0.8 test suite validates the Green layer against exact atomic Hubbard expressions, noninteracting limits, high-frequency sum rules, Nambu indexing and redundancy, causality, and Dyson reconstruction before the objects enter the embedding layer.
+The recorded regression tests validate the Green layer against exact atomic Hubbard expressions, noninteracting limits, high-frequency sum rules, Nambu indexing and redundancy, causality, and Dyson reconstruction before the objects enter the embedding layer.
 
 ## Related modules
 

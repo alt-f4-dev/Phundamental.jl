@@ -46,7 +46,7 @@ For finite-temperature calculations whose natural object is an imaginary-frequen
 
 `LehmannLines` stores discrete transition centers and weights before numerical line broadening. This intermediate representation is useful for exact finite systems because it preserves the delta-function spectrum independently of how the spectrum is later plotted.
 
-`lehmann_lines` computes the transitions. `AbstractBroadening` is the base for numerical line-shape models; v0.0.8 includes `LorentzianBroadening` and `GaussianBroadening`. `broaden_lines` evaluates the broadened spectrum on a requested axis.
+`lehmann_lines` computes the transitions. `AbstractBroadening` is the base for numerical line-shape models; the implemented line shapes include `LorentzianBroadening` and `GaussianBroadening`. `broaden_lines` evaluates the broadened spectrum on a requested axis.
 
 Broadening here is a representation of discrete intrinsic spectral lines. It is not automatically interpreted as experimental resolution.
 
@@ -102,7 +102,7 @@ Static structure factors can also be computed from classical configuration ensem
 
 `spectral_density` computes a single-particle spectral density from the relevant fermionic solver result. `cluster_perturbation_spectral_function` evaluates the spectral function associated with the cluster-perturbation Green function produced by [Solvers](solvers.md).
 
-The zero-temperature CPT Green-function workflow in Solvers and the finite-temperature Matsubara Green-function objects in [Greens](greens.md) are separate abstractions. Conversion to a real-frequency spectral function requires an appropriate real-frequency or continuation strategy; v0.0.8 does not silently analytically continue Matsubara data.
+The zero-temperature CPT Green-function workflow in Solvers and the finite-temperature Matsubara Green-function objects in [Greens](greens.md) are separate abstractions. Conversion to a real-frequency spectral function requires an appropriate real-frequency or continuation strategy; the API does not silently analytically continue Matsubara data.
 
 ## Magnetic neutron scattering
 

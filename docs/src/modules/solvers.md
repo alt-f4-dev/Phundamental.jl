@@ -166,7 +166,7 @@ $$E(\mathbf s)=E_0+\frac{1}{2}\mathbf s^T J\mathbf s+\mathbf h^T\mathbf s,\qquad
 
 `validate_matrix_realization` compares symbolic and realized operators where an independent reference is available. The optimized backends have dedicated validation functions that compare packed and generic pipelines, basis ordering, rank lookup, sector decomposition, mode results, phonon dispersions, and spin-wave results.
 
-The package maintains dense and generic paths as references rather than deleting them after optimization. This policy was important in v0.0.8: the ED-DMFT impurity backend was first validated against dense ED, then sectorized, then threaded while preserving serial/dense equivalence.
+The package maintains dense and generic paths as references rather than deleting them after optimization. For the finite-bath ED-DMFT implementation, the impurity backend was first validated against dense ED, then sectorized, then threaded while preserving serial/dense equivalence.
 
 ## Related modules
 

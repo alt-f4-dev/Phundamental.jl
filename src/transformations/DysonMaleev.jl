@@ -76,8 +76,8 @@ function transform(T::DysonMaleev, model::ManyBodyModel)
     push!(history, (transformation=:dyson_maleev, certificate=cert,
                     source_representation=model.representation.name,
                     target_representation=target.name))
-    target_space = _transformed_model_space(T, target, model)
-    target_specification = isnothing(target_space) ? _transformed_specification(target, model.specification) : target_space.specification
+    target_space = _transformed_model_space(bound, target, model)
+    target_specification = isnothing(target_space) ? _transformed_specification(bound, target, model.specification) : target_space.specification
     out = ManyBodyModel(target, Hnew; parameters=model.parameters, observables=Onew, provenance=history,
                         specification=target_specification, model_space=target_space, parameterization=rebind_parameters(model.parameterization, target_space))
     return TransformationResult(out, T, cert, Dict(:domain=>true, :parameters=>true, :result=>true))

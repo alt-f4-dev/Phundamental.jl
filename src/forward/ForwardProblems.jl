@@ -155,6 +155,11 @@ end
 function _execute_solver_input(solver::NLCESolver, input::_NLCEProblemSolverInput)
     solution = solve(solver, input.problem)
     solution.metadata[:forward_route] = :finite_reference_nlce
+    if input.problem.specification isa InducedStructuralSpinSpec
+        solution.metadata[:structural_family_id] = input.problem.specification.family_id
+        solution.metadata[:structural_selection_id] = input.problem.specification.selection_id
+        solution.metadata[:cluster_regeneration] = :induced_spin_terms
+    end
     solution.metadata[:observable_request] = input.requirements.request_kind
     solution.metadata[:inner_solver] = solver_name(input.context.inner_solver)
     solution.metadata[:inner_approximation] = _solver_approximation(input.context.inner_solver)

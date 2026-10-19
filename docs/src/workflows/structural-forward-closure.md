@@ -97,3 +97,7 @@ reconstruct_model
 validate_structural_representation
 structural_id
 ```
+
+## F3 method-context propagation
+
+A prepared structural selection may now bind a typed numerical `method_context` alongside its solver and observable. `forward_parameters` and `forward_batch` pass that context to the same compatibility-certified `ForwardProblem` interface used by direct calculations; they do not bypass source parameter constraints or cache mutable cluster models. The F1 bond-resolved `StructuralNLCEForwardContext` is supported, subject to its exact reference and bond-decomposition checks. Under an explicit `ForwardExecutionPolicy`, a directly supplied context becomes one candidate route and must be selected by the policy; alternative contexts must be supplied on separate `ForwardRoute` objects. The planner does not silently replace a requested explicit context with an unrelated exact method.

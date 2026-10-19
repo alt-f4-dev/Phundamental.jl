@@ -1,0 +1,53 @@
+name: Julia package regression tests
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Julia ${{ matrix.julia }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        julia: ["1.12", "1"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia }}
+      - name: Cache packages and compiled dependencies
+        uses: julia-actions/cache@v2
+      - name: Instantiate and strictly precompile package
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile(strict=true)'
+      - name: Run all package regressions
+        run: julia --project=. -e 'using Pkg; Pkg.test()'
+  documentation:
+    name: Documentation build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.12"
+      - name: Cache packages and compiled dependencies
+        uses: julia-actions/cache@v2
+      - name: Instantiate documentation environment
+        run: julia --project=docs -e 'using Pkg; Pkg.instantiate()'
+      - name: Build and validate documentation without publishing
+        env:
+          GITHUB_ACTIONS: "false"
+        run: julia --project=docs docs/make.jl

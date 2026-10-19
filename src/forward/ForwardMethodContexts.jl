@@ -1,5 +1,7 @@
 # Explicit method-specific context configures an already selected high-level computational route without determining physical/model-space admissibility or ranking candidate methods.
 
+using LinearAlgebra: svdvals, Diagonal
+
 abstract type AbstractForwardMethodContext end
 
 """
@@ -95,14 +97,55 @@ function NLCEForwardContext(max_order::Integer; inner_solver::AbstractSolver=Exa
                               bonds, Int(min_order), Int(max_clusters), model_transform, model_builder, allow_periodic_reference)
 end
 
+# A generated family can reach single-site embedding only when its entire canonical Hamiltonian
+# lies in the three-dimensional nearest-shell Hubbard subspace of the same physical reference.
+function _generated_single_band_hubbard_parameters(model::ManyBodyModel; tolerance::Real=1e-9)
+    isfinite(tolerance) && tolerance > 0 || throw(ArgumentError("generated Hubbard certification requires a finite positive tolerance"))
+    isnothing(Models._structural_provenance(model)) && throw(ArgumentError(
+        "automatic Hubbard lowering requires certified structural-selection provenance"))
+    material = get(model.parameters, :material, nothing)
+    reference = get(model.parameters, :cluster, nothing)
+    material isa Material && reference isa Supercell || throw(ArgumentError(
+        "generated Hubbard lowering requires the original material and finite reference Supercell"))
+    length(material.crystal.basis) == 1 || throw(ArgumentError("scalar Hubbard embedding requires one basis site per primitive cell"))
+    maximum_range = model.model_space.specification.max_range
+    isnothing(maximum_range) && throw(ArgumentError(
+        "generated Hubbard embedding requires an explicit max_range certifying the intended physical interaction domain"))
+    translation = reference.crystal.lattice.direct * Diagonal(reference.repetitions)
+    2 * maximum_range < minimum(svdvals(translation)) || throw(ArgumentError(
+        "the periodic reference is too small to distinguish declared-range structural interactions from their periodic images"))
+    context = geometry_context(model)
+    isnothing(context) && throw(ArgumentError("generated Hubbard lowering requires certified component geometry"))
+    layout = context.component_layout
+    !isnothing(layout) && layout.kind === :spinful_fermion && layout.norbitals == 1 || throw(ArgumentError(
+        "only generated single-orbital spinful-fermion layouts admit scalar Hubbard embedding"))
+    layout.nsites == nsites(reference) && model.representation.algebra.nmodes == 2 * nsites(reference) ||
+        throw(DimensionMismatch("certified fermion layout does not match the reference Supercell"))
+    model.hamiltonian isa AbstractOperatorExpr || throw(ArgumentError("generated Hubbard certification requires a symbolic Hamiltonian"))
+    hopping = build_model(material, reference, HubbardModel(1.0, 0.0; shell=1)).hamiltonian
+    interaction = build_model(material, reference, HubbardModel(0.0, 1.0; shell=1)).hamiltonian
+    chemical = build_model(material, reference, HubbardModel(0.0, 0.0; shell=1, chemical_potential=1.0)).hamiltonian
+    decomposition = PhundamentalCore.structural_span_coordinates(AbstractOperatorExpr[hopping, interaction, chemical],
+        model.hamiltonian, model.representation.algebra; tolerance=tolerance)
+    decomposition === missing && throw(ArgumentError("generated Hubbard certification requires numeric Hamiltonian coefficients"))
+    decomposition.within_span || throw(ArgumentError(
+        "the generated Hamiltonian is not an exact scalar nearest-shell Hubbard model (residual=$(decomposition.residual))"))
+    t, U, mu = decomposition.coefficients
+    specification = HubbardModel(t, U; shell=1, chemical_potential=mu)
+    return (interaction=U, chemical_potential=mu, hopping=t, specification=specification,
+            canonical_residual=decomposition.residual, certified_from=:structural_generation)
+end
+
 function _single_band_hubbard_forward_parameters(model::ManyBodyModel)
     model.representation.algebra isa FermionAlgebra || throw(ArgumentError("single-site DMFT forward integration requires a direct FermionAlgebra representation"))
     iseven(model.representation.algebra.nmodes) || throw(ArgumentError("spinful single-band Hubbard models require an even number of fermion modes"))
+    !isnothing(Models._structural_provenance(model)) && return _generated_single_band_hubbard_parameters(model)
     specification = get(model.parameters, :hamiltonian_spec, nothing)
-    specification isa HubbardModel || throw(ArgumentError("single-site DMFT forward integration currently requires model.parameters[:hamiltonian_spec] to be HubbardModel"))
+    specification isa HubbardModel || throw(ArgumentError("single-site DMFT requires a certified structural single-band Hubbard model or a typed HubbardModel specification"))
     specification.U isa Real || throw(ArgumentError("single-site DMFT currently requires a scalar Hubbard interaction"))
     specification.chemical_potential isa Real || throw(ArgumentError("single-site DMFT currently requires a scalar chemical potential"))
-    return (interaction=Float64(specification.U), chemical_potential=Float64(specification.chemical_potential), specification=specification)
+    return (interaction=Float64(specification.U), chemical_potential=Float64(specification.chemical_potential),
+            hopping=specification.t, specification=specification, certified_from=:explicit_hubbard_specification)
 end
 
 function _nlce_forward_model_components(model::ManyBodyModel)

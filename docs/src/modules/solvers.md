@@ -42,6 +42,10 @@ The package-level forward API adds a separate compatibility layer on top of thes
 
 This terminology is deliberate. Solver compatibility is not Hamiltonian admissibility. Physical admissibility belongs to the model-space/generative layer; a physically valid Hamiltonian may have no currently implemented numerical route. The compatibility report records approximation identity but does not authorize it; `ForwardExecutionPolicy` is the separate package-level mechanism that controls which fully specified routes may be selected automatically.
 
+### Extensible solver compatibility contracts
+
+Milestone E adds public type-dispatched hooks for user-defined solvers: `solver_model_capability`, `solver_output_family`, `solver_request_capability`, `solver_context_capability`, and `solver_approximation`. The `CapabilityDecision` return value distinguishes support from certification and attaches structured `CompatibilityIssue` objects. Use `compatibility_issues(report)` to inspect the stage and diagnostic code while retaining the original `SolverCompatibility.reasons` field. See [Solver Capability Extensions](../workflows/capability-extension-and-module-layout.md) for a standalone example and the supported extension boundaries.
+
 ### Important capability rules
 
 Bare coordinate/momentum representations are not silently discretized. They must first be transformed with `CoordinateLadder` or handled by a dedicated coordinate-aware backend.

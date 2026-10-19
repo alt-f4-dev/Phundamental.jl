@@ -120,3 +120,9 @@ enumerate_structures
 model_space_hierarchy
 parameter_subspace
 ```
+
+## F4 optional group and finite-reference rotational certification
+
+For material-based generation, `certify_group=true` checks the complete list of crystallographic operations modulo lattice translations, including identity, closure, site permutations and metric preservation. This is particularly useful with externally supplied symmetry datasets; it does not change the default handling of intentionally restricted operation lists. The physical-symmetry workflow documents a cubic and screw-axis benchmark against discovered Spglib operations.
+
+For quadratic Cartesian coordinate models intended as finite **open** force-constant references, `rotational_sum_rule=true`, `rotational_scope=:finite_site_hessian` and explicit Cartesian `rotational_positions` augment `acoustic_sum_rule=true` with independent rigid-body rotation constraints. This assertion must not be made for a periodically aliased Hessian: correct periodic Born–Huang constraints require image-resolved force constants, not a finite-index Hessian alone.

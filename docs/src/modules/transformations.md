@@ -240,3 +240,7 @@ representation_class
 ## Additional exported transformation types and utilities
 
 The concrete transformation types are `FourierTransformation`, `BogoliubovTransformation`, `ParticleHoleTransformation`, `MajoranaTransformation`, `JordanWigner`, `HolsteinPrimakoff`, `DysonMaleev`, `SchwingerBoson`, `AbrikosovFermion`, `SlaveParticleTransformation`, `CoordinateLadder`, `BosonicDisplacement`, `LangFirsov`, and `SpinPolaron`. Additional public protocol functions are `transformation_name`, `certificate`, `applicable`, `target_representation`, `transform_generator`, `transform`, `compose`, `CompositeTransformation`, `inverse`, the approximation protocol functions, `TRANSFORMATION_REGISTRY`, and the graph mutation/traversal utilities.
+
+## Generative-specification transport (Milestone B)
+
+A representation mapping need not transport physical symmetry actions or site-local spaces into the new operator algebra. The transformed specification therefore preserves the source definitions as provenance, marks unsupported actions and conditions as `:not_transported`, and does not reuse source body-order restrictions in the target algebra. A declared interaction-range restriction remains unevaluated until an appropriate target range evaluator is supplied. Consequently, `admissibility_report` reports incomplete physical certification for unsupported transported constraints, without precluding numerical use of the transformed Hamiltonian. See [Physical Symmetry and Transformed Specifications](../workflows/physical-symmetry-and-transport.md).

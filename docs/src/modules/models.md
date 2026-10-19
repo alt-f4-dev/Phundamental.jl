@@ -44,7 +44,7 @@ Local frames are particularly important for anisotropic magnets and local-axis I
 
 ## Long-range interactions
 
-`AbstractLongRangeInteraction` is the common abstraction for interactions whose numerical evaluation requires a summation strategy. implemented interaction types include `CoulombInteraction` and `DipolarInteraction`.
+`AbstractLongRangeInteraction` is the common abstraction for interactions whose numerical evaluation requires a summation strategy. v0.0.8 includes `CoulombInteraction` and `DipolarInteraction`.
 
 `AbstractInteractionSummation` separates the physical interaction from the summation method. `RealSpaceCutoff` truncates in real space; `EwaldSummation` performs a periodic Ewald decomposition. This separation lets the same physical interaction be evaluated with multiple numerical controls.
 
@@ -95,7 +95,7 @@ The resulting model remains in the spin representation unless the user explicitl
 
 ### Anderson impurity model
 
-`AndersonImpurityModel` constructs the finite single-orbital impurity Hamiltonian used by the normal-state ED-DMFT implementation. The bath is spin degenerate: each finite bath orbital is represented for both spin components, and `impurity_bath_sites` exposes the associated impurity/bath indexing.
+`AndersonImpurityModel` constructs the finite single-orbital impurity Hamiltonian used by the v0.0.8 ED-DMFT implementation. The bath is spin degenerate: each finite bath orbital is represented for both spin components, and `impurity_bath_sites` exposes the associated impurity/bath indexing.
 
 The [Embedding](embedding.md) layer normally constructs this model internally after fitting a `DiscreteBath`, but the specification is public so the same finite impurity problem can be built and solved directly.
 
@@ -236,3 +236,55 @@ The remaining exports cover the geometry primitives and accessors (`BravaisLatti
 `instantiate_model(selection, representation, values)` now accepts a `StructuralSelection` directly, preserves complete invariant directions, validates its child parameter schema against all parent equality constraints, and retains structural provenance. `validate_structural_representation` verifies the unambiguous spin, fermion, and boson local-space relationships without attempting to invent component-aware or composite symmetry actions.
 
 `structural_id` and `describe` expose deterministic finite-domain identifiers and neutral structural descriptions. `reconstruct_selection` and `reconstruct_model` validate a proposed family, selection, and coefficient payload entirely in Julia. The forward execution helpers `prepare_forward`, `forward_parameters`, and `forward_batch` reuse the existing `ForwardProblem` pipeline without introducing shared mutable numerical caches. See [Structural Forward Closure](../workflows/structural-forward-closure.md).
+
+## High-Level Physical Interaction Specifications
+
+The high-level physical-interaction layer permits finite, named user-defined operator sums over arbitrary supported operator algebras, while retaining the authoritative crystallographic generator and structural-search/parameter contracts. `OperatorOrbit` accepts a user-supplied operator builder, and `InteractionSpecification` declares channel groups; specialized spin, fermionic and bosonic constructors are thin conveniences rather than independent model-generation implementations.
+
+```@docs
+OperatorOrbit
+InteractionGroup
+InteractionSpecification
+PhysicalCoefficientMap
+InteractionGenerationResult
+PhysicalCouplings
+physical_operator_sum
+generate_interaction_family
+physical_parameters
+```
+
+The spin-scattering convenience interface lives at the root of `Phundamental` and composes the existing observables, probes and forward pipeline without introducing a new numerical solver. See [Physical Interaction Generation](../workflows/physical-interaction-generation.md).
+
+```@meta
+CurrentModule = Phundamental
+```
+
+```@docs
+SpinScatteringProblem
+spin_observables
+spin_scattering_problem
+validate_forward_equivalence
+```
+
+```@meta
+CurrentModule = Phundamental.Models
+```
+
+## Model contexts and structural localization
+
+`generation_context` builds typed material and geometry provenance from a `HamiltonianGenerationResult`; `default_observable_context` combines it with supported standard observable registries. Generated selections automatically retain these contexts, with explicit input validated against the original site order. `locate_in_family` maps a symbolic external Hamiltonian or a `ManyBodyModel` into its parent invariant basis, returning structured span residuals, constraint checks, and a nonempty selection only when admissible. See [Model Context and Localization](../workflows/model-context-and-localization.md).
+
+```@docs
+generation_context
+default_observable_context
+StructuralLocation
+locate_in_family
+```
+
+## Cartesian phonon acoustic constraints (Milestone B)
+
+The acoustic sum rule is a linear constraint on the coefficients of the **complete harmonic potential**, rather than a projection of individual invariant operators. See [Physical Symmetry and Transformed Specifications](../workflows/physical-symmetry-and-transport.md).
+
+```@docs
+acoustic_sum_rule_constraints
+```

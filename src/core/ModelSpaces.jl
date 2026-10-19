@@ -298,6 +298,17 @@ function admissibility_report(specification::GenerativeSpecification, candidate:
         end
     end
 
+    transport = specification.metadata isa AbstractDict || specification.metadata isa NamedTuple ? specification.metadata : Dict{Symbol,Any}()
+    for (key, name) in ((:symmetry_action_transport, :transported_symmetry),
+                        (:local_spaces_transport, :transported_local_spaces),
+                        (:admissibility_conditions_transport, :transported_conditions))
+        if get(transport, key, nothing) === :not_transported
+            push!(checks, AdmissibilityCheck(name, missing;
+                reason="source $(name) has not been transported into this operator representation",
+                metadata=Dict(:transport_status => :not_transported)))
+        end
+    end
+
     for condition in specification.admissibility_conditions
         if algebra_ok
             push!(checks, admissibility_check(condition, candidate))

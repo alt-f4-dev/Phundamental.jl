@@ -264,8 +264,11 @@ function instantiate_model(selection::StructuralSelection, representation::Repre
                     generation_domain=get(spec.metadata, :generation_domain, :unspecified),
                     spacegroup_number=hasproperty(dataset, :spacegroup_number) ? dataset.spacegroup_number : nothing,
                     parent_completeness_scope=get(selection.family.metadata, :parent_completeness_scope, :unknown)))
+    _require_context_label_separation(selection.hamiltonian_space)
+    context = default_observable_context(selection.family, representation;
+        observables=observables, metadata_parameters=metadata_parameters)
     return instantiate_model(selection.hamiltonian_space, representation, point;
-                             observables=observables, metadata_parameters=metadata_parameters, provenance=history)
+                             observables=context.observables, metadata_parameters=context.metadata_parameters, provenance=history)
 end
 
 """Validate a versioned selection record and coefficient payload against a locally held family before constructing a model."""

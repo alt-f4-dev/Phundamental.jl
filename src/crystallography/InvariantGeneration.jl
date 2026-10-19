@@ -184,6 +184,7 @@ end
 function reynolds_project(expression::AbstractOperatorExpr, specification::GenerativeSpecification, structure::CrystalStructure, dataset::CrystallographicDataset; options=nothing)
     isempty(dataset.operations) && throw(ArgumentError("crystallographic dataset contains no symmetry operations"))
     resolved_options = _resolved_crystallography_options(specification, options)
+    isnothing(specification.symmetry_action) && throw(ArgumentError("symmetry action was not transported to this representation; invariant projection is unavailable"))
     transformed = AbstractOperatorExpr[]
     sizehint!(transformed, length(dataset.operations))
     for operation in dataset.operations
@@ -205,6 +206,10 @@ function generate_invariant_basis(specification::GenerativeSpecification, struct
     rejected_admissibility = 0
     for candidate in candidates
         canonical_candidate = canonicalize(specification.algebra, candidate)
+        if specification.symmetry_action isa SpinfulFermionAction
+            iszero(_fermion_parity(canonical_candidate)) ||
+                throw(ArgumentError("spinful fermion invariant generation requires even-fermion-parity Hamiltonian candidates"))
+        end
         if !isnothing(specification.max_body_order) && body_order(specification.algebra, canonical_candidate) > specification.max_body_order
             rejected_body_order += 1
             continue

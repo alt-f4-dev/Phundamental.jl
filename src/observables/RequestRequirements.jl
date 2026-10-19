@@ -214,3 +214,29 @@ end
 """Return whether a request explicitly asks for a time- or frequency-dependent response."""
 is_dynamical_request(request::AbstractObservable) = request_requirements(request).frequency_domain in (:real, :matsubara, :time)
 is_dynamical_request(requirements::RequestRequirements) = requirements.frequency_domain in (:real, :matsubara, :time)
+
+function request_requirements(request::StaticStructureFactorRequest)
+    return RequestRequirements(request_kind=:static_structure_factor, response_kind=:equal_time_correlation,
+                               frequency_domain=:static, statistics=:bosonic, momentum_scope=:momentum_resolved,
+                               response_order=2, temperature=request.temperature, metadata=copy(request.metadata))
+end
+
+function request_requirements(request::ThermodynamicCurveRequest)
+    return RequestRequirements(request_kind=:thermodynamic_curve, response_kind=:thermodynamic_curve,
+                               frequency_domain=:static, statistics=:canonical, momentum_scope=:bulk,
+                               response_order=0, metadata=copy(request.metadata))
+end
+
+function request_requirements(request::CPTSpectralFunctionRequest)
+    return RequestRequirements(request_kind=:cluster_perturbation_spectral_function, response_kind=:spectral_function,
+                               frequency_domain=:real, statistics=:fermionic, momentum_scope=:momentum_resolved,
+                               response_order=2, operator_channels=(request.spin,), temperature=0.0,
+                               metadata=copy(request.metadata))
+end
+
+function request_requirements(request::HarmonicMultiphononSliceRequest)
+    return RequestRequirements(request_kind=:harmonic_multiphonon_slice, response_kind=:integrated_correlation_spectrum,
+                               frequency_domain=:integrated, statistics=:bosonic, momentum_scope=:momentum_resolved,
+                               response_order=2, operator_channels=(:displacement,), temperature=request.temperature,
+                               metadata=copy(request.metadata))
+end

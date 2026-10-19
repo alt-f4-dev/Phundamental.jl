@@ -8,6 +8,7 @@ include("SymmetryTypes.jl")
 include("SpglibBackend.jl")
 include("OrbitExpansion.jl")
 include("SymmetryActions.jl")
+include("InternalSymmetryActions.jl")
 include("InvariantGeneration.jl")
 
 export CrystalStructure,
@@ -22,11 +23,16 @@ export CrystalStructure,
        cartesian_rotation,
        axial_rotation,
        site_permutation,
+       validate_crystallographic_group,
        spglib_cell,
        discover_symmetry,
        transform_primitive,
        transform_operator,
        standard_symmetry_action,
+       MagneticSymmetryAction,
+       SpinfulFermionAction,
+       VectorDisplacementAction,
+       validate_internal_symmetry,
        CrystallographicGenerator,
        enumerate_operator_candidates,
        reynolds_project,

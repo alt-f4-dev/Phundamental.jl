@@ -155,3 +155,16 @@ CrystallographicGenerator
 ## Additional exported utilities
 
 The remaining public crystallography utilities are `wrap_fractional`, `fractional_displacement`, `cartesian_rotation`, `axial_rotation`, `site_permutation`, `transform_operator`, `standard_symmetry_action`, `enumerate_operator_candidates`, `reynolds_project`, `generate_invariant_basis`, `crystallographic_specification`, and `generate_crystallographic_hamiltonian_space`.
+
+## Explicit internal symmetry representations (Milestone B)
+
+The standard spin action already applies axial Cartesian rotations and optionally time reversal. The following typed actions extend the same Reynolds projector to physically declared multicomponent mode layouts. All relevant operations must form the intended finite group, and the internal representation must be compatible with that group.
+
+```@docs
+MagneticSymmetryAction
+SpinfulFermionAction
+VectorDisplacementAction
+validate_internal_symmetry
+```
+
+See [Physical Symmetry and Transformed Specifications](../workflows/physical-symmetry-and-transport.md) for the spinor index convention, orbital-matrix validation, Cartesian phonon transformations, acoustic sum rules, and the limits of transported specifications.

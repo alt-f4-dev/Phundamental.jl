@@ -6,7 +6,7 @@
 
 The package supports symbolic many-body operator algebra, representation transformations, crystallographic invariant generation, finite-cluster and specialized numerical solvers, scattering observables, equilibrium thermodynamics, finite-temperature Green functions, and finite-bath embedding workflows including normal-state single-site exact-diagonalization dynamical mean-field theory (ED-DMFT).
 
-The current stable release is `v0.0.9`. The development snapshot may use a separate, independently tracked development identifier.
+The current stable release is `v0.0.9`. 
 
 ## Documentation
 

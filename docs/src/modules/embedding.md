@@ -417,3 +417,7 @@ DiagrammaticExecutionPolicy
 ```
 
 For threaded runs, start Julia with more than one Julia thread, for example `julia --threads=auto --project=.`. Dense linear algebra may also use BLAS threads; benchmark local settings before combining both forms of parallelism because oversubscription can reduce performance.
+
+## Geometry-derived single-band embedding
+
+A Bravais hopping set can be compiled into the existing `MomentumLattice` and its exact momentum-addition maps with `bravais_momentum_lattice`. This requires an explicitly declared one-orbital Hamiltonian hopping convention; it is not a general multiorbital band-structure generator. See [Extended Forward Physics](../workflows/extended-forward-physics.md).

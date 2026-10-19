@@ -213,6 +213,11 @@ function _order_convergence(partial)
 end
 
 function _nlce_reference_bonds(problem::NLCEProblem)
+    if !isnothing(problem.bonds) && !isnothing(problem.model_builder)
+        bonds = collect(problem.bonds)
+        all(bond -> bond isa Bond, bonds) || throw(ArgumentError("explicit NLCE reference bonds must be Bond objects"))
+        return bonds
+    end
     reference_model = isnothing(problem.bonds) ? build_model(problem.material, problem.reference, problem.specification) :
                       build_model(problem.material, problem.reference, problem.specification; bonds=collect(problem.bonds))
     ref_bonds = isnothing(problem.bonds) ? get(reference_model.parameters, :bonds, nothing) : collect(problem.bonds)

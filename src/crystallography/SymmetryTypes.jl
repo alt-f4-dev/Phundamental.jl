@@ -117,3 +117,43 @@ function site_permutation(structure::CrystalStructure, operation::SpaceGroupOper
     length(unique(permutation)) == length(permutation) || throw(ArgumentError("symmetry operation does not induce a bijective site permutation"))
     return permutation
 end
+
+"""
+    validate_crystallographic_group(structure, dataset; atol=1e-7)
+
+Certify that the declared finite list of operations is a complete crystallographic group modulo integer translations, acts bijectively on the given sites, and preserves the Cartesian metric. Magnetic operations compose their time-reversal flags by XOR. This checks the group action, not the completeness of an orbital or spinor representation.
+"""
+function validate_crystallographic_group(structure::CrystalStructure, dataset::CrystallographicDataset; atol::Real=1e-7)
+    isfinite(atol) && 0 < atol < 0.25 || throw(ArgumentError("group tolerance must be finite and lie in (0, 0.25)"))
+    operations = dataset.operations
+    isempty(operations) && throw(ArgumentError("the crystallographic group cannot be empty"))
+    buckets = Dict{Tuple{NTuple{9,Int},Bool},Vector{SpaceGroupOperation}}()
+    I3 = Matrix{Float64}(I, 3, 3)
+    for operation in operations
+        abs(round(Int, det(operation.rotation))) == 1 && isapprox(abs(det(operation.rotation)), 1; atol=atol, rtol=0) ||
+            throw(ArgumentError("crystallographic rotations must have determinant ±1"))
+        R = cartesian_rotation(structure, operation)
+        norm(transpose(R) * R - I3, Inf) <= atol || throw(ArgumentError("crystallographic rotation does not preserve the Cartesian metric"))
+        site_permutation(structure, operation; atol=atol)
+        key = (Tuple(vec(operation.rotation)), operation.time_reversal)
+        bucket = get!(buckets, key, SpaceGroupOperation[])
+        for previous in bucket
+            maximum(abs.(mod.(operation.translation .- previous.translation .+ 0.5, 1.0) .- 0.5)) > atol ||
+                throw(ArgumentError("crystallographic group contains duplicate operations modulo lattice translations"))
+        end
+        push!(bucket, operation)
+    end
+    identity_key = (Tuple(vec(Matrix{Int}(I, 3, 3))), false)
+    any(op -> maximum(abs.(mod.(op.translation .+ 0.5, 1.0) .- 0.5)) <= atol,
+        get(buckets, identity_key, SpaceGroupOperation[])) ||
+        throw(ArgumentError("crystallographic group does not contain the identity"))
+    for left in operations, right in operations
+        rotation = left.rotation * right.rotation
+        translation = left.rotation * right.translation + left.translation
+        key = (Tuple(vec(rotation)), xor(left.time_reversal, right.time_reversal))
+        matches = get(buckets, key, SpaceGroupOperation[])
+        any(op -> maximum(abs.(mod.(translation .- op.translation .+ 0.5, 1.0) .- 0.5)) <= atol, matches) ||
+            throw(ArgumentError("crystallographic operations are not closed under composition modulo lattice translations"))
+    end
+    return true
+end

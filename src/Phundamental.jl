@@ -7,29 +7,32 @@ module Phundamental
 #
 # Directory layout expected relative to this file:
 #
-#   Phundamental.jl
-#   Core/
-#   Algebra/
-#   Transformations/
-#   Solvers/
-#   Observables/
-#   Models/
-#   Thermodynamics/
-#   Greens/
-#   Embedding/
+#   Phundamental.jl        canonical entry point and public exports
+#   core/                 foundational state spaces, algebra, representations, model spaces
+#   algebra/              symbolic manipulation and canonicalization
+#   crystallography/      space-group actions and invariant generation
+#   transformations/      representation transformations and certification
+#   solvers/              numerical solvers and optimized backends
+#   observables/          correlation, scattering, and instrumental response
+#   models/               geometry, materials, and Hamiltonian construction
+#   thermodynamics/       thermal states and linked-cluster expansions
+#   greens/               finite-temperature Green functions and analytic continuation
+#   embedding/            impurity, DMFT, diagrammatic methods, geometric embedding
+#   forward/              forward routes, solver compatibility, planning, and results
+#   experimental/         portable predictions, datasets, and measurement comparison
+#   api/                  cross-layer convenience constructors
 #
 # IMPORTANT:
 # Julia already defines the built-in module `Core`.  Therefore the implementation
-# files stored in the directory `Core/` are loaded here into the submodule
+# files stored in the directory `core/` are loaded here into the submodule
 # `PhundamentalCore`, rather than redefining a module named `Core`.
 #
 # `Foundation` is provided as a convenient alias:
 #
 #     Phundamental.Foundation === Phundamental.PhundamentalCore
 #
-# The wrapper files Core/Core.jl, Algebra/Algebra.jl, ... are intentionally not
-# included here; their implementation files are loaded directly so that all
-# relative module dependencies are valid beneath `Phundamental`.
+# Implementation files are loaded under the authoritative inline submodules.
+# Obsolete standalone directory wrappers were retired in Milestone E.
 # =============================================================================
 
 
@@ -47,6 +50,7 @@ include("core/Operators.jl")
 include("core/Representations.jl")
 include("core/ModelStructures.jl")
 include("core/ModelSpaces.jl")
+include("core/ModelContexts.jl")
 include("core/Models.jl")
 include("core/ReciprocalSpace.jl")
 include("core/Parameters.jl")
@@ -156,7 +160,8 @@ export AbstractModelStructure,
        structural_signature,
        interaction_graph,
        structurally_equivalent,
-       structural_span_membership
+       structural_span_membership,
+       structural_span_coordinates
 
 # Hamiltonian model spaces and typed parameters
 export AbstractModelSpace,
@@ -205,7 +210,17 @@ export AbstractModelSpace,
        with_parameters
 
 # Models
-export ManyBodyModel,
+export ComponentIndexLayout,
+       component_index,
+       component_site,
+       component_coordinates,
+       GeometryContext,
+       PhysicalModelContext,
+       ObservableContext,
+       observable_context,
+       model_context,
+       geometry_context,
+       ManyBodyModel,
        with_provenance,
        remap_model,
        with_truncation,
@@ -513,6 +528,7 @@ include("observables/CorrelationFunctions.jl")
 include("observables/DynamicStructureFactor.jl")
 include("observables/CompositeResponses.jl")
 include("observables/ForwardRequests.jl")
+include("observables/ExtendedForwardRequests.jl")
 include("observables/RequestRequirements.jl")
 include("observables/SpinWaveStructureFactor.jl")
 include("observables/StaticStructureFactor.jl")
@@ -523,6 +539,7 @@ include("observables/Scattering.jl")
 include("observables/HarmonicMultiphonon.jl")
 include("observables/EnsembleObservables.jl")
 include("observables/Resolution.jl")
+include("observables/GeneralResolution.jl")
 include("observables/Validation.jl")
 
 export AbstractObservable,
@@ -539,6 +556,10 @@ export AbstractObservable,
        CompositeDynamicalCorrelationRequest,
        SpinPhononCorrelationRequest,
        SpinTensorStructureFactorRequest,
+       StaticStructureFactorRequest,
+       ThermodynamicCurveRequest,
+       CPTSpectralFunctionRequest,
+       HarmonicMultiphononSliceRequest,
        LocalMatsubaraGreenFunctionRequest,
        LocalMatsubaraSelfEnergyRequest,
        MatsubaraSusceptibilityRequest,
@@ -606,6 +627,13 @@ export AbstractObservable,
        ensemble_magnetization,
        spin_tensor_static_structure_factor,
        GaussianResolution,
+       EnergyDependentGaussianResolution,
+       TabulatedGaussianResolution,
+       TabulatedEnergyResolution,
+       GaussianQEResolution,
+       SparseQEResolution,
+       InstrumentCoverage,
+       CoveredResolution,
        convolve_resolution,
        validate_observable_equivalence,
        integrated_spectral_weight,
@@ -625,6 +653,7 @@ using SHA
 using LinearAlgebra
 using ..PhundamentalCore
 import ..PhundamentalCore: instantiate_model, structural_signature, structure, interaction_graph
+import ..Algebra: canonicalize
 import ..Crystallography
 using ..Crystallography: SpaceGroupOperation, space_group_operations, expand_symmetry_orbit
 
@@ -655,8 +684,12 @@ include("models/Hamiltonians/ImpurityModels.jl")
 include("models/Hamiltonians/PhononModels.jl")
 include("models/Hamiltonians/HybridModels.jl")
 include("models/Hamiltonians/UniversalGeneration.jl")
+include("models/Hamiltonians/AcousticSumRules.jl")
 include("models/Hamiltonians/StructuralSearch.jl")
 include("models/Hamiltonians/StructuralClosure.jl")
+include("models/Hamiltonians/PhysicalInteractions.jl")
+include("models/Hamiltonians/ModelContexts.jl")
+include("models/Hamiltonians/StructuralLocalization.jl")
 
 include("models/Validation.jl")
 
@@ -782,7 +815,23 @@ export AbstractHamiltonianSpec,
        HamiltonianGenerationResult,
        material_crystallographic_structure,
        material_generative_specification,
+       acoustic_sum_rule_constraints,
+       rotational_sum_rule_constraints,
        generate_hamiltonian_family,
+       InteractionGroup,
+       OperatorOrbit,
+       InteractionSpecification,
+       ExchangeOrbit,
+       FieldOrbit,
+       HoppingOrbit,
+       DensityInteractionOrbit,
+       PairingOrbit,
+       physical_operator_sum,
+       PhysicalCoefficientMap,
+       InteractionGenerationResult,
+       PhysicalCouplings,
+       generate_interaction_family,
+       physical_parameters,
        InvariantDirectionSignature,
        StructuralFamilySignature,
        StructuralUnit,
@@ -816,6 +865,10 @@ export AbstractHamiltonianSpec,
        describe,
        reconstruct_selection,
        reconstruct_model,
+       generation_context,
+       default_observable_context,
+       StructuralLocation,
+       locate_in_family,
        validate_lattice,
        validate_bonds,
        validate_material_model,
@@ -824,7 +877,7 @@ export AbstractHamiltonianSpec,
 
 end # module Models
 
-include("ConvenienceAPI.jl")
+include("api/ConvenienceAPI.jl")
 
 # =============================================================================
 # 7. Canonical thermodynamics, thermal sampling, and linked clusters
@@ -1130,8 +1183,13 @@ using .Crystallography: CrystalStructure,
                         space_group_operations,
                         expand_symmetry_orbit,
                         site_permutation,
+                        validate_crystallographic_group,
                         discover_symmetry,
                         standard_symmetry_action,
+                        MagneticSymmetryAction,
+                        SpinfulFermionAction,
+                        VectorDisplacementAction,
+                        validate_internal_symmetry,
                         CrystallographicGenerator,
                         enumerate_operator_candidates,
                         reynolds_project,
@@ -1176,6 +1234,7 @@ using .Transformations: AbstractTransformation,
                         transform_along
 
 using .Solvers
+import .Solvers: solver_name
 
 using .Observables: AbstractObservable,
                     AbstractProbe,
@@ -1184,6 +1243,10 @@ using .Observables: AbstractObservable,
                     CompositeDynamicalCorrelationRequest,
                     SpinPhononCorrelationRequest,
                     SpinTensorStructureFactorRequest,
+                    StaticStructureFactorRequest,
+                    ThermodynamicCurveRequest,
+                    CPTSpectralFunctionRequest,
+                    HarmonicMultiphononSliceRequest,
                     LocalMatsubaraGreenFunctionRequest,
                     LocalMatsubaraSelfEnergyRequest,
                     MatsubaraSusceptibilityRequest,
@@ -1203,6 +1266,13 @@ using .Observables: AbstractObservable,
                     LorentzianBroadening,
                     GaussianBroadening,
                     GaussianResolution,
+                    EnergyDependentGaussianResolution,
+                    TabulatedGaussianResolution,
+                    TabulatedEnergyResolution,
+                    GaussianQEResolution,
+                    SparseQEResolution,
+                    InstrumentCoverage,
+                    CoveredResolution,
                     MagneticNeutronProbe,
                     NuclearNeutronProbe,
                     CoherentNeutronProbe,
@@ -1321,7 +1391,23 @@ using .Models: BravaisLattice,
                HamiltonianGenerationResult,
                material_crystallographic_structure,
                material_generative_specification,
+               acoustic_sum_rule_constraints,
+       rotational_sum_rule_constraints,
                generate_hamiltonian_family,
+       InteractionGroup,
+       OperatorOrbit,
+       InteractionSpecification,
+       ExchangeOrbit,
+       FieldOrbit,
+       HoppingOrbit,
+       DensityInteractionOrbit,
+       PairingOrbit,
+       physical_operator_sum,
+       PhysicalCoefficientMap,
+       InteractionGenerationResult,
+       PhysicalCouplings,
+       generate_interaction_family,
+       physical_parameters,
                InvariantDirectionSignature,
                StructuralFamilySignature,
                StructuralUnit,
@@ -1355,6 +1441,10 @@ using .Models: BravaisLattice,
        describe,
        reconstruct_selection,
        reconstruct_model,
+       generation_context,
+       default_observable_context,
+       StructuralLocation,
+       locate_in_family,
                LocalFrame,
                LocalFrameField,
                local_x,
@@ -1466,11 +1556,16 @@ using .Thermodynamics: AbstractThermalMethod,
 using .Greens
 using .Embedding
 
-include("ForwardMethodContexts.jl")
-include("ResultCapabilities.jl")
-include("ForwardCapabilities.jl")
-include("ForwardProblems.jl")
-include("ForwardPlanning.jl")
+include("forward/ForwardMethodContexts.jl")
+include("embedding/GeometricEmbedding.jl")
+include("greens/AnalyticContinuation.jl")
+include("forward/ResultCapabilities.jl")
+include("forward/ForwardCapabilityContracts.jl")
+include("forward/ForwardCapabilities.jl")
+include("forward/ForwardProblems.jl")
+include("forward/StructuralClusterForward.jl")
+include("forward/ExtendedForward.jl")
+include("forward/ForwardPlanning.jl")
 
 # =============================================================================
 # 11. High-level forward-calculation orchestration
@@ -1508,6 +1603,7 @@ struct ForwardResult{SM,M,TR,S,O,P,R}
     result::R
 end
 
+include("experimental/ExperimentalData.jl")
 
 """
     forward(model; transformation=nothing, solver=ExactDiagonalization(),
@@ -1621,14 +1717,22 @@ function forward(
 end
 
 
-include("StructuralForward.jl")
+include("forward/StructuralForward.jl")
 
 # =============================================================================
 # 12. Public exports
 # =============================================================================
 
 # Major namespaces
-export PhundamentalCore,
+export ThermodynamicForwardSolver,
+       RationalContinuation,
+       ContinuationResult,
+       continue_matsubara,
+       BravaisHopping,
+       bravais_momentum_lattice,
+       StructuralNLCEForwardContext,
+       regenerate_induced_spin_cluster,
+       PhundamentalCore,
        Foundation,
        Algebra,
        Crystallography,
@@ -1738,6 +1842,7 @@ export AbstractStateSpace,
        interaction_graph,
        structurally_equivalent,
        structural_span_membership,
+       structural_span_coordinates,
        AbstractModelSpace,
        AbstractAdmissibilityCondition,
        AdmissibilityCheck,
@@ -1782,6 +1887,16 @@ export AbstractStateSpace,
        parameter_binding,
        rebind_parameters,
        with_parameters,
+       ComponentIndexLayout,
+       component_index,
+       component_site,
+       component_coordinates,
+       GeometryContext,
+       PhysicalModelContext,
+       ObservableContext,
+       observable_context,
+       model_context,
+       geometry_context,
        ManyBodyModel,
        with_provenance,
        remap_model,
@@ -1959,6 +2074,10 @@ export AbstractProbe,
        CompositeDynamicalCorrelationRequest,
        SpinPhononCorrelationRequest,
        SpinTensorStructureFactorRequest,
+       StaticStructureFactorRequest,
+       ThermodynamicCurveRequest,
+       CPTSpectralFunctionRequest,
+       HarmonicMultiphononSliceRequest,
        LocalMatsubaraGreenFunctionRequest,
        LocalMatsubaraSelfEnergyRequest,
        MatsubaraSusceptibilityRequest,
@@ -1969,6 +2088,13 @@ export AbstractProbe,
        LorentzianBroadening,
        GaussianBroadening,
        GaussianResolution,
+       EnergyDependentGaussianResolution,
+       TabulatedGaussianResolution,
+       TabulatedEnergyResolution,
+       GaussianQEResolution,
+       SparseQEResolution,
+       InstrumentCoverage,
+       CoveredResolution,
        MagneticNeutronProbe,
        NuclearNeutronProbe,
        CoherentNeutronProbe,
@@ -2084,7 +2210,23 @@ export BravaisLattice,
        HamiltonianGenerationResult,
        material_crystallographic_structure,
        material_generative_specification,
+       acoustic_sum_rule_constraints,
+       rotational_sum_rule_constraints,
        generate_hamiltonian_family,
+       InteractionGroup,
+       OperatorOrbit,
+       InteractionSpecification,
+       ExchangeOrbit,
+       FieldOrbit,
+       HoppingOrbit,
+       DensityInteractionOrbit,
+       PairingOrbit,
+       physical_operator_sum,
+       PhysicalCoefficientMap,
+       InteractionGenerationResult,
+       PhysicalCouplings,
+       generate_interaction_family,
+       physical_parameters,
        InvariantDirectionSignature,
        StructuralFamilySignature,
        StructuralUnit,
@@ -2113,6 +2255,15 @@ export BravaisLattice,
        embed_parameters,
        project_parameters,
        parameter_subspace,
+       validate_structural_representation,
+       structural_id,
+       describe,
+       reconstruct_selection,
+       reconstruct_model,
+       generation_context,
+       default_observable_context,
+       StructuralLocation,
+       locate_in_family,
        LocalFrame,
        LocalFrameField,
        local_x,
@@ -2347,8 +2498,13 @@ export CrystalStructure,
        space_group_operations,
        expand_symmetry_orbit,
        site_permutation,
+       validate_crystallographic_group,
        discover_symmetry,
        standard_symmetry_action,
+       MagneticSymmetryAction,
+       SpinfulFermionAction,
+       VectorDisplacementAction,
+       validate_internal_symmetry,
        CrystallographicGenerator,
        enumerate_operator_candidates,
        reynolds_project,
@@ -2361,6 +2517,10 @@ export ForwardProblem,
        CalculationPlan,
        ForwardResult,
        PreparedStructuralForward,
+       SpinScatteringProblem,
+       spin_observables,
+       spin_scattering_problem,
+       validate_forward_equivalence,
        prepare_forward,
        forward_parameters,
        forward_batch,
@@ -2374,6 +2534,15 @@ export ForwardProblem,
        request_requirements,
        is_dynamical_request,
        SolverCompatibility,
+       CompatibilityIssue,
+       CapabilityDecision,
+       solver_model_capability,
+       request_model_capability,
+       solver_request_capability,
+       solver_context_capability,
+       solver_output_family,
+       solver_approximation,
+       compatibility_issues,
        solver_compatibility,
        solver_capabilities,
        compatible_solvers,
@@ -2399,6 +2568,16 @@ export ForwardProblem,
        result_values,
        result_uncertainty,
        result_provenance,
+       EXPERIMENTAL_DATA_SCHEMA_VERSION,
+       ExperimentalGrid,
+       PortablePrediction,
+       ExperimentalDataset,
+       MeasurementComparison,
+       portable_prediction,
+       experimental_dataset,
+       export_result,
+       import_result,
+       compare_measurement,
        response_capabilities,
        response_kind,
        frequency_domain,

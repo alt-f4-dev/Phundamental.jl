@@ -126,6 +126,34 @@ end
 
 _standard_site_index_count(::CoordinateMomentumAlgebra) = nothing
 
+function _internal_local_spaces(action::Crystallography.SpinfulFermionAction, site_count::Int)
+    return ntuple(_ -> FermionFockSpace(2 * action.norbitals), site_count)
+end
+
+function _internal_local_spaces(::Crystallography.VectorDisplacementAction, site_count::Int)
+    return ntuple(_ -> CoordinateHilbertSpace(3), site_count)
+end
+
+function _internal_local_spaces(::Crystallography.MagneticSymmetryAction, material, cluster, algebra, site_count::Int)
+    return _default_local_spaces(material, cluster, algebra, site_count)
+end
+
+function _component_range_evaluator(crystal::Crystallography.CrystalStructure, algebra::AbstractOperatorAlgebra, ncomponents::Int)
+    return function (expression::AbstractOperatorExpr)
+        terms = structure(expression, algebra).terms
+        diameter = 0.0
+        for term in terms
+            indices = unique(cld(Int(support.index), ncomponents) for support in term.supports)
+            all(i -> 1 <= i <= length(crystal), indices) || throw(ArgumentError("operator mode is outside the crystallographic site layout"))
+            for a in 1:(length(indices) - 1), b in (a + 1):length(indices)
+                difference = crystal.positions[:, indices[a]] .- crystal.positions[:, indices[b]]
+                diameter = max(diameter, _minimum_periodic_cartesian_distance(crystal.lattice, difference))
+            end
+        end
+        return diameter
+    end
+end
+
 function _validate_standard_site_indexing(algebra::AbstractOperatorAlgebra, site_count::Integer)
     count = _standard_site_index_count(algebra)
     isnothing(count) && throw(ArgumentError(
@@ -244,19 +272,39 @@ function _material_specification(
     max_body_order=nothing,
     range_evaluator=nothing,
     options::Crystallography.CrystallographyOptions=Crystallography.CrystallographyOptions(),
+    certify_group::Bool=false,
     metadata=Dict{Symbol,Any}(),
 )
     crystal = isnothing(cluster) ? material_crystallographic_structure(material) : material_crystallographic_structure(material, cluster)
     site_count = length(crystal)
-    symmetry_action === Crystallography.standard_symmetry_action && _validate_standard_site_indexing(algebra, site_count)
+    standard_action = symmetry_action === Crystallography.standard_symmetry_action
+    internal_action = symmetry_action isa Union{Crystallography.MagneticSymmetryAction,Crystallography.SpinfulFermionAction,
+                                               Crystallography.VectorDisplacementAction}
+    standard_action && _validate_standard_site_indexing(algebra, site_count)
 
     resolved_spaces = if isnothing(local_spaces)
-        _validate_standard_site_indexing(algebra, site_count)
-        _default_local_spaces(material, cluster, algebra, site_count)
+        if symmetry_action isa Crystallography.SpinfulFermionAction
+            _internal_local_spaces(symmetry_action, site_count)
+        elseif symmetry_action isa Crystallography.VectorDisplacementAction
+            _internal_local_spaces(symmetry_action, site_count)
+        elseif symmetry_action isa Crystallography.MagneticSymmetryAction
+            _internal_local_spaces(symmetry_action, material, cluster, algebra, site_count)
+        else
+            _validate_standard_site_indexing(algebra, site_count)
+            _default_local_spaces(material, cluster, algebra, site_count)
+        end
     else
         spaces = local_spaces isa AbstractStateSpace ? (local_spaces,) : Tuple(local_spaces)
         all(space -> space isa AbstractStateSpace, spaces) || throw(ArgumentError("local_spaces entries must subtype AbstractStateSpace"))
         spaces
+    end
+    if symmetry_action isa Crystallography.SpinfulFermionAction
+        length(resolved_spaces) == site_count && all(space -> space isa FermionFockSpace &&
+            space.nmodes == 2 * symmetry_action.norbitals, resolved_spaces) ||
+            throw(DimensionMismatch("spinful fermion local spaces must contain exactly 2 * norbitals modes per crystallographic site"))
+    elseif symmetry_action isa Crystallography.VectorDisplacementAction
+        length(resolved_spaces) == site_count && all(space -> space isa CoordinateHilbertSpace && space.ndof == 3, resolved_spaces) ||
+            throw(DimensionMismatch("Cartesian vector local spaces must contain three displacement coordinates per crystallographic site"))
     end
     resolved_dataset = if isnothing(dataset)
         Crystallography.discover_symmetry(crystal; options=options)
@@ -265,14 +313,24 @@ function _material_specification(
         dataset
     end
 
-    if symmetry_action === Crystallography.standard_symmetry_action
+    if certify_group
+        Crystallography.validate_crystallographic_group(crystal, resolved_dataset; atol=options.site_tolerance)
+    end
+    if standard_action || internal_action
         _validate_standard_local_space_symmetry(resolved_spaces, crystal, resolved_dataset, options)
+    end
+    if internal_action
+        Crystallography.validate_internal_symmetry(symmetry_action, crystal, resolved_dataset, algebra)
     end
 
     resolved_range_evaluator = if !isnothing(range_evaluator)
         range_evaluator
-    elseif !isnothing(max_range) && symmetry_action === Crystallography.standard_symmetry_action
+    elseif !isnothing(max_range) && (standard_action || symmetry_action isa Crystallography.MagneticSymmetryAction)
         _crystallographic_range_evaluator(crystal, algebra)
+    elseif !isnothing(max_range) && symmetry_action isa Crystallography.SpinfulFermionAction
+        _component_range_evaluator(crystal, algebra, 2 * symmetry_action.norbitals)
+    elseif !isnothing(max_range) && symmetry_action isa Crystallography.VectorDisplacementAction
+        _component_range_evaluator(crystal, algebra, 3)
     else
         nothing
     end
@@ -283,11 +341,12 @@ function _material_specification(
     merged_metadata[:crystal_structure] = crystal
     merged_metadata[:crystallography_options] = options
     merged_metadata[:crystallographic_backend] = get(resolved_dataset.metadata, :backend, :provided)
+    merged_metadata[:crystallographic_group_certified] = certify_group
     merged_metadata[:material_name] = material.name
     merged_metadata[:material_species_ids] = species_ids
     merged_metadata[:generation_domain] = isnothing(cluster) ? :primitive_cell : :periodic_supercell
-    merged_metadata[:operator_site_mapping] = symmetry_action === Crystallography.standard_symmetry_action ?
-        :one_index_per_crystallographic_site : :custom
+    merged_metadata[:operator_site_mapping] = standard_action || symmetry_action isa Crystallography.MagneticSymmetryAction ?
+        :one_index_per_crystallographic_site : internal_action ? :ordered_internal_components : :custom
     if !isnothing(max_range) && isnothing(range_evaluator) && !isnothing(resolved_range_evaluator)
         merged_metadata[:range_evaluator_source] = :crystallographic_geometry
     end
@@ -363,6 +422,10 @@ function _generation_result(
     parameter_priors=nothing,
     parameter_constraints=(),
     parameter_metadata=Dict{Symbol,Any}(),
+    acoustic_sum_rule::Bool=false,
+    rotational_sum_rule::Bool=false,
+    rotational_positions=nothing,
+    rotational_scope::Symbol=:periodic,
 )
     space_metadata = Dict{Symbol,Any}(Symbol(key) => value for (key, value) in pairs(generation_metadata))
     space_metadata[:universal_generator] = :batch10_material_crystallographic
@@ -376,6 +439,19 @@ function _generation_result(
         metadata=space_metadata,
     )
     model_structure = structure(space)
+    acoustic_constraints = acoustic_sum_rule ? acoustic_sum_rule_constraints(space; nsites=length(crystal)) : LinearParameterConstraint[]
+    rotational_constraints = if rotational_sum_rule
+        acoustic_sum_rule || throw(ArgumentError("finite rigid-rotation constraints require acoustic_sum_rule=true"))
+        rotational_scope === :finite_site_hessian || throw(ArgumentError("rotational_scope=:finite_site_hessian must be explicitly declared; the periodic force-constant model cannot be certified from folded site indices"))
+        isnothing(rotational_positions) && throw(ArgumentError("rotational_positions must provide explicit Cartesian coordinates for the finite open-reference Hessian"))
+        rotational_sum_rule_constraints(space; positions=rotational_positions, nsites=length(crystal), boundary=:open)
+    else
+        isnothing(rotational_positions) && rotational_scope === :periodic ||
+            throw(ArgumentError("rotational_positions and rotational_scope require rotational_sum_rule=true"))
+        LinearParameterConstraint[]
+    end
+    declared_constraints = parameter_constraints isa AbstractParameterConstraint ? (parameter_constraints,) : Tuple(parameter_constraints)
+    combined_constraints = (declared_constraints..., acoustic_constraints..., rotational_constraints...)
     parameter_space = _generated_parameter_space(
         space;
         parameter_values=parameter_values,
@@ -383,7 +459,7 @@ function _generation_result(
         parameter_units=parameter_units,
         parameter_fixed=parameter_fixed,
         parameter_priors=parameter_priors,
-        parameter_constraints=parameter_constraints,
+        parameter_constraints=combined_constraints,
         parameter_metadata=parameter_metadata,
     )
     resolved_options = isnothing(options) ? get(specification.metadata, :crystallography_options, Crystallography.CrystallographyOptions()) : options
@@ -391,6 +467,11 @@ function _generation_result(
     dataset = specification.space_group isa Crystallography.CrystallographicDataset ?
         specification.space_group : Crystallography.discover_symmetry(crystal; options=resolved_options)
     metadata = Dict{Symbol,Any}(Symbol(key) => value for (key, value) in pairs(generation_metadata))
+    metadata[:acoustic_sum_rule] = acoustic_sum_rule
+    metadata[:acoustic_constraint_count] = length(acoustic_constraints)
+    metadata[:rotational_sum_rule] = rotational_sum_rule
+    metadata[:rotational_constraint_count] = length(rotational_constraints)
+    metadata[:rotational_scope] = rotational_sum_rule ? rotational_scope : :not_requested
     metadata[:source] = isnothing(material) ? :generative_specification :
         (isnothing(cluster) ? :material_primitive_cell : :material_periodic_supercell)
     metadata[:spacegroup_number] = dataset.spacegroup_number
@@ -419,6 +500,7 @@ end
 function generate_hamiltonian_family(
     material::Material,
     algebra::AbstractOperatorAlgebra;
+    interactions=nothing,
     candidates=nothing,
     max_operator_degree=nothing,
     basis_labels=nothing,
@@ -430,8 +512,23 @@ function generate_hamiltonian_family(
     parameter_priors=nothing,
     parameter_constraints=(),
     parameter_metadata=Dict{Symbol,Any}(),
+    acoustic_sum_rule::Bool=false,
+    rotational_sum_rule::Bool=false,
+    rotational_positions=nothing,
+    rotational_scope::Symbol=:periodic,
     specification_kwargs...,
 )
+    if !isnothing(interactions)
+        interactions isa InteractionSpecification || throw(ArgumentError("interactions must be an InteractionSpecification"))
+        isnothing(candidates) && isnothing(basis_labels) && isnothing(max_operator_degree) ||
+            throw(ArgumentError("interaction specifications cannot be combined with explicit candidates, basis_labels, or max_operator_degree"))
+        return generate_interaction_family(material, algebra, interactions; generation_metadata=generation_metadata,
+            parameter_values=parameter_values, parameter_bounds=parameter_bounds, parameter_units=parameter_units,
+            parameter_fixed=parameter_fixed, parameter_priors=parameter_priors, parameter_constraints=parameter_constraints,
+            parameter_metadata=parameter_metadata, acoustic_sum_rule=acoustic_sum_rule,
+            rotational_sum_rule=rotational_sum_rule, rotational_positions=rotational_positions, rotational_scope=rotational_scope,
+            specification_kwargs...)
+    end
     specification, crystal, _ = _material_specification(material, nothing, algebra; specification_kwargs...)
     options = get(specification.metadata, :crystallography_options, nothing)
     return _generation_result(
@@ -450,6 +547,10 @@ function generate_hamiltonian_family(
         parameter_priors=parameter_priors,
         parameter_constraints=parameter_constraints,
         parameter_metadata=parameter_metadata,
+        acoustic_sum_rule=acoustic_sum_rule,
+        rotational_sum_rule=rotational_sum_rule,
+        rotational_positions=rotational_positions,
+        rotational_scope=rotational_scope,
     )
 end
 
@@ -457,6 +558,7 @@ function generate_hamiltonian_family(
     material::Material,
     cluster::Supercell,
     algebra::AbstractOperatorAlgebra;
+    interactions=nothing,
     candidates=nothing,
     max_operator_degree=nothing,
     basis_labels=nothing,
@@ -468,8 +570,23 @@ function generate_hamiltonian_family(
     parameter_priors=nothing,
     parameter_constraints=(),
     parameter_metadata=Dict{Symbol,Any}(),
+    acoustic_sum_rule::Bool=false,
+    rotational_sum_rule::Bool=false,
+    rotational_positions=nothing,
+    rotational_scope::Symbol=:periodic,
     specification_kwargs...,
 )
+    if !isnothing(interactions)
+        interactions isa InteractionSpecification || throw(ArgumentError("interactions must be an InteractionSpecification"))
+        isnothing(candidates) && isnothing(basis_labels) && isnothing(max_operator_degree) ||
+            throw(ArgumentError("interaction specifications cannot be combined with explicit candidates, basis_labels, or max_operator_degree"))
+        return generate_interaction_family(material, cluster, algebra, interactions; generation_metadata=generation_metadata,
+            parameter_values=parameter_values, parameter_bounds=parameter_bounds, parameter_units=parameter_units,
+            parameter_fixed=parameter_fixed, parameter_priors=parameter_priors, parameter_constraints=parameter_constraints,
+            parameter_metadata=parameter_metadata, acoustic_sum_rule=acoustic_sum_rule,
+            rotational_sum_rule=rotational_sum_rule, rotational_positions=rotational_positions, rotational_scope=rotational_scope,
+            specification_kwargs...)
+    end
     specification, crystal, _ = _material_specification(material, cluster, algebra; specification_kwargs...)
     options = get(specification.metadata, :crystallography_options, nothing)
     return _generation_result(
@@ -489,6 +606,10 @@ function generate_hamiltonian_family(
         parameter_priors=parameter_priors,
         parameter_constraints=parameter_constraints,
         parameter_metadata=parameter_metadata,
+        acoustic_sum_rule=acoustic_sum_rule,
+        rotational_sum_rule=rotational_sum_rule,
+        rotational_positions=rotational_positions,
+        rotational_scope=rotational_scope,
     )
 end
 
@@ -506,12 +627,15 @@ function instantiate_model(result::HamiltonianGenerationResult, representation::
         spacegroup_number=result.dataset.spacegroup_number,
         structural_signature=structural_signature(result.model_structure),
     ))
+    _require_context_label_separation(result.hamiltonian_space)
+    context = default_observable_context(result, representation;
+        observables=observables, metadata_parameters=metadata_parameters)
     return instantiate_model(
         result.hamiltonian_space,
         representation,
         parameters;
-        observables=observables,
-        metadata_parameters=metadata_parameters,
+        observables=context.observables,
+        metadata_parameters=context.metadata_parameters,
         provenance=history,
     )
 end

@@ -301,3 +301,59 @@ function structural_span_membership(basis::AbstractVector{<:AbstractOperatorExpr
     rank_augmented = rank(hcat(B, c); atol=tolerance, rtol=tolerance)
     return rank_augmented == rank_basis
 end
+
+"""
+    structural_span_coordinates(basis, targets, algebra; tolerance=1e-10)
+
+Recover the real canonical coordinates of one or several physical operator expressions in a fixed Hermitian basis. Multiple targets share one coefficient matrix, rank check, and factorization. Numerical residuals use the joint real/imaginary canonical coordinates, and symbolic nonnumeric coefficients return `missing`.
+"""
+function structural_span_coordinates(basis::AbstractVector{<:AbstractOperatorExpr}, targets::AbstractVector{<:AbstractOperatorExpr},
+                                     algebra::AbstractOperatorAlgebra; tolerance::Real=1e-10)
+    isfinite(tolerance) && tolerance >= 0 || throw(ArgumentError("tolerance must be finite and nonnegative"))
+    isempty(basis) && throw(ArgumentError("coordinate recovery requires a nonempty Hermitian basis"))
+    isempty(targets) && throw(ArgumentError("coordinate recovery requires at least one target operator"))
+    maps = [_numeric_linear_terms(algebra, operator) for operator in basis]
+    rhs_maps = [_numeric_linear_terms(algebra, operator) for operator in targets]
+    (any(isnothing, maps) || any(isnothing, rhs_maps)) && return missing
+    keys_all = Any[]
+    for entry in (maps..., rhs_maps...)
+        append!(keys_all, keys(first(entry)))
+    end
+    unique!(keys_all)
+    sort!(keys_all; by=repr)
+    isempty(keys_all) && throw(ArgumentError("basis and target operators are identically zero"))
+    n = length(keys_all)
+    B = zeros(Float64, 2n, length(basis))
+    C = zeros(Float64, 2n, length(targets))
+    for (j, entry) in enumerate(maps)
+        for (i, key) in enumerate(keys_all)
+            value = get(first(entry), key, 0.0 + 0.0im)
+            B[i, j] = real(value)
+            B[n + i, j] = imag(value)
+        end
+    end
+    for (j, entry) in enumerate(rhs_maps)
+        for (i, key) in enumerate(keys_all)
+            value = get(first(entry), key, 0.0 + 0.0im)
+            C[i, j] = real(value)
+            C[n + i, j] = imag(value)
+        end
+    end
+    rank_basis = rank(B; atol=tolerance, rtol=tolerance)
+    rank_basis == length(basis) || throw(ArgumentError("the supplied invariant basis is numerically rank deficient at the requested tolerance"))
+    coefficients = Matrix{Float64}(B \ C)
+    all(isfinite, coefficients) || throw(ArgumentError("canonical basis coordinates are nonfinite"))
+    residuals = Float64[norm(B * coefficients[:, j] - C[:, j]) for j in axes(C, 2)]
+    norms = Float64[norm(C[:, j]) for j in axes(C, 2)]
+    relative_residuals = residuals ./ max.(norms, eps(Float64))
+    within_span = BitVector(residuals .<= tolerance .* max.(1.0, norms))
+    return (; coefficients, residuals, relative_residuals, within_span, rank=rank_basis)
+end
+
+function structural_span_coordinates(basis::AbstractVector{<:AbstractOperatorExpr}, candidate::AbstractOperatorExpr,
+                                     algebra::AbstractOperatorAlgebra; tolerance::Real=1e-10)
+    result = structural_span_coordinates(basis, AbstractOperatorExpr[candidate], algebra; tolerance=tolerance)
+    result === missing && return missing
+    return (; coefficients=collect(result.coefficients[:, 1]), residual=result.residuals[1],
+            relative_residual=result.relative_residuals[1], rank=result.rank, within_span=result.within_span[1])
+end

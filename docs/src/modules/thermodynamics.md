@@ -248,3 +248,7 @@ rigol_2007_square_site_counts
 summarize_topological_expansion
 validate_rigol_2007_square_site_counts
 ```
+
+## Thermodynamic forward routing and structural clusters
+
+`ThermodynamicForwardSolver` routes a typed `ThermodynamicCurveRequest` through the existing exact or stochastic thermal methods. `StructuralNLCEForwardContext` enables certified induced-subgraph cluster regeneration for finite spin Hamiltonians. See [Extended Forward Physics](../workflows/extended-forward-physics.md).

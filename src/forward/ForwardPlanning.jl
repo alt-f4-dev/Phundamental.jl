@@ -7,6 +7,7 @@ const _DEFAULT_FORWARD_SOLVER_PREFERENCE = (
     :quadratic_boson,
     :optimized_lanczos,
     :exact_diagonalization,
+    :thermal_curve,
     :lanczos,
     :auto_solver,
     :linear_spin_wave,
@@ -116,6 +117,7 @@ function _default_exact_forward_routes()
         ForwardRoute(QuadraticFermionSolver()),
         ForwardRoute(QuadraticBosonSolver()),
         ForwardRoute(ExactDiagonalization()),
+        ForwardRoute(ThermodynamicForwardSolver()),
     )
 end
 

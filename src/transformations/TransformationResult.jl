@@ -33,37 +33,48 @@ function _transform_observables(
 end
 
 
-function _transformed_specification(target::Representation, specification)
+"""Transport only those generative restrictions that are meaningful in the target algebra; record unresolved constraints explicitly."""
+function _transformed_specification(T::AbstractTransformation, target::Representation, specification; basis=nothing)
     isnothing(specification) && return nothing
-    metadata = Dict{Symbol,Any}()
-    try
-        for (key, value) in pairs(specification.metadata)
-            metadata[Symbol(key)] = value
-        end
-    catch
-    end
+    source_metadata = specification.metadata
+    source_metadata isa AbstractDict || source_metadata isa NamedTuple ||
+        throw(ArgumentError("generative specification metadata must support key-value iteration for transformation"))
+    metadata = Dict{Symbol,Any}(Symbol(key) => value for (key, value) in pairs(source_metadata))
     metadata[:representation_algebra_transport] = target.name
+    metadata[:representation_transformation] = transformation_name(T)
+    metadata[:symmetry_action_transport] = :not_transported
+    metadata[:source_symmetry_action] = specification.symmetry_action
+    metadata[:local_spaces_transport] = :not_transported
+    metadata[:source_local_spaces] = specification.local_spaces
+    metadata[:admissibility_conditions_transport] = isempty(specification.admissibility_conditions) ? :none : :not_transported
+    metadata[:source_admissibility_conditions] = specification.admissibility_conditions
     metadata[:range_evaluator_transport] = isnothing(specification.range_evaluator) ? :none : :not_assumed
-    return GenerativeSpecification(
-        specification.space_group,
-        specification.wyckoff_orbits,
-        specification.local_spaces,
-        target.algebra,
-        specification.symmetry_action;
-        admissibility_conditions=specification.admissibility_conditions,
-        max_range=specification.max_range,
-        max_body_order=specification.max_body_order,
-        range_evaluator=nothing,
-        metadata=metadata,
-    )
+    metadata[:source_max_body_order] = specification.max_body_order
+    metadata[:source_max_range] = specification.max_range
+    new_body_order = nothing
+    if !isnothing(basis)
+        # Body order under nonlinear and constrained maps is not a source-domain invariant.
+        metadata[:transformed_basis_max_body_order] = :unevaluated
+    end
+    metadata[:max_body_order_transport] = isnothing(specification.max_body_order) ? :none : :not_transported
+    return GenerativeSpecification(specification.space_group, specification.wyckoff_orbits, nothing, target.algebra, nothing;
+        admissibility_conditions=(), max_range=specification.max_range, max_body_order=new_body_order,
+        range_evaluator=nothing, metadata=metadata)
 end
+
+# Internal compatibility overload for transforms that cannot provide an executable transport map.
+_transformed_specification(target::Representation, specification) = _transformed_specification(_UnknownSpecificationTransport(), target, specification)
+
+struct _UnknownSpecificationTransport <: AbstractTransformation end
+transformation_name(::_UnknownSpecificationTransport) = :unspecified
 
 function _transformed_model_space(T::AbstractTransformation, target::Representation, model::ManyBodyModel)
     isnothing(model.model_space) && return nothing
     source_space = model.model_space
-    target_specification = _transformed_specification(target, source_space.specification)
     mapped = AbstractOperatorExpr[transform_hamiltonian(T, target, operator) for operator in source_space.basis.operators]
-    metadata = Dict{Symbol,Any}(:transformed_from => model.representation.name, :transformation => transformation_name(T))
+    target_specification = _transformed_specification(T, target, source_space.specification; basis=mapped)
+    metadata = Dict{Symbol,Any}(:transformed_from => model.representation.name, :transformation => transformation_name(T),
+        :symmetry_action_transport => :not_transported, :local_spaces_transport => :not_transported)
     basis = HamiltonianBasis(mapped; labels=source_space.basis.labels, metadata=source_space.basis.metadata)
     return HamiltonianSpace(target_specification, basis; metadata=metadata)
 end
@@ -111,7 +122,7 @@ function transform(T::AbstractTransformation, model::ManyBodyModel)
     push!(history, provenance_record)
 
     target_space = _transformed_model_space(T, target, model)
-    target_specification = isnothing(target_space) ? _transformed_specification(target, model.specification) : target_space.specification
+    target_specification = isnothing(target_space) ? _transformed_specification(T, target, model.specification) : target_space.specification
     transformed = ManyBodyModel(target, Hnew; parameters=model.parameters, observables=Onew,
                                 provenance=history, specification=target_specification, model_space=target_space,
                                 parameterization=rebind_parameters(model.parameterization, target_space))

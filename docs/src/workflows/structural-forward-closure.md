@@ -2,9 +2,9 @@
 CurrentModule = Phundamental
 ```
 
-# Batch 12: Structural Forward Closure and Reconstruction
+# Structural Forward Closure and Reconstruction
 
-Batch 12 connects the Batch 10 crystallographic generator and Batch 11 structural search to the existing representation-aware forward pipeline. Julia remains authoritative for physical admissibility, structural selection, parameter constraints, Hamiltonian assembly, numerical transformations, solver execution, and observable/probe/resolution calculations. Machine-readable records identify objects retained in Julia; they are not serialized Julia operator trees, executable callbacks, or independently executable physical model definitions.
+Structural forward closure connects crystallographic Hamiltonian generation and symmetry-complete structural search to the existing representation-aware forward pipeline. Julia remains authoritative for physical admissibility, structural selection, parameter constraints, Hamiltonian assembly, numerical transformations, solver execution, and observable/probe/resolution calculations. Machine-readable records identify objects retained in Julia; they are not serialized Julia operator trees, executable callbacks, or independently executable physical model definitions.
 
 The operational chain is
 
@@ -39,7 +39,7 @@ model = instantiate_model(selection, representation, Dict(:h1 => 0.7))
 
 ## Deterministic structural identifiers and neutral descriptions
 
-`structural_id` computes versioned SHA-256 digests from the canonical Batch 11 structural signatures, rather than Julia's session-dependent `hash` values. `describe` supplies nested dictionaries containing only neutral scalar values, strings, arrays and dictionaries, with explicit schema versions. The stable identity is relative to the declared finite generation domain, numerical signature quantization, Julia package semantics, and captured callback descriptors. Because arbitrary Julia callbacks cannot be reconstructed or certified from a text record, their implementation semantics require a pinned Julia execution environment; matching identifiers do not independently prove two callback implementations are behaviorally equivalent.
+`structural_id` computes versioned SHA-256 digests from the canonical structural-selection signatures, rather than Julia's session-dependent `hash` values. `describe` supplies nested dictionaries containing only neutral scalar values, strings, arrays and dictionaries, with explicit schema versions. The stable identity is relative to the declared finite generation domain, numerical signature quantization, Julia package semantics, and captured callback descriptors. Because arbitrary Julia callbacks cannot be reconstructed or certified from a text record, their implementation semantics require a pinned Julia execution environment; matching identifiers do not independently prove two callback implementations are behaviorally equivalent.
 
 ```julia
 family_record = describe(family)
@@ -75,7 +75,7 @@ With a typed `AbstractObservable`, a caller can optionally supply `policy=Forwar
 
 ## Validity boundaries
 
-Batch 12 also corrects the geometric `max_range` evaluation for nonorthogonal cells: it minimizes the Cartesian distance over periodic lattice images, using a finite singular-value-derived bound rather than componentwise fractional wrapping. Ill-conditioned cells requiring an excessive exhaustive image search fail explicitly rather than silently using an incorrect cutoff.
+For nonorthogonal cells, the geometric `max_range` evaluator minimizes the Cartesian distance over periodic lattice images, using a finite singular-value-derived bound rather than componentwise fractional wrapping. Ill-conditioned cells requiring an excessive exhaustive image search fail explicitly rather than silently using an incorrect cutoff.
 
 The standard material-aware crystallographic path uses a three-dimensional geometry and one operator index per crystallographic site for its unambiguous automatic path. Richer orbital/spinor symmetries, vector-component phonon displacements, composite factors, and Majorana representations require explicit operator actions and local spaces. Crystallographic site permutations alone do not prove spin rotational invariance, axial-vector transformation, time-reversal symmetry, or the acoustic sum rule. Separate existing phonon solvers remain valid within their own tested domains, but do not constitute an automatic phonon invariant-basis generator.
 

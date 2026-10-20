@@ -145,7 +145,7 @@ When a `ManyBodyModel` carries a `GenerativeSpecification` or `HamiltonianSpace`
 
 ## Parameter-schema transport
 
-When the source model carries a Batch 9 `ParameterSpace` or `ParameterPoint`, exact transformation machinery preserves the ordered parameter specifications, concrete values, and explicit equality constraints while rebinding the schema to the transformed `HamiltonianSpace`. `rebind_parameters` regenerates each `ParameterBinding` from the mapped basis direction, so coupling identity is retained by name and basis index while the binding's structural signature changes with the target representation.
+When the source model carries a `ParameterSpace` or `ParameterPoint`, exact transformation machinery preserves the ordered parameter specifications, concrete values, and explicit equality constraints while rebinding the schema to the transformed `HamiltonianSpace`. `rebind_parameters` regenerates each `ParameterBinding` from the mapped basis direction, so coupling identity is retained by name and basis index while the binding's structural signature changes with the target representation.
 
 This is intentionally different from transporting physical locality metadata. A parameter relation such as $J_1=J_2$ remains a relation between the same two physical couplings under an exact representation map, whereas a source-side range evaluator may no longer be meaningful after a nonlocal transformation.
 
@@ -185,7 +185,7 @@ structurally_related
 ```
 
 
-Batch 8 distinguishes canonical structural identity from exact physical equivalence under a representation map. `structurally_equivalent(source, target)` is intentionally false when the models occupy different physical representation contexts, even when an exact transformation connects them.
+The structural representation distinguishes canonical structural identity from exact physical equivalence under a representation map. `structurally_equivalent(source, target)` is intentionally false when the models occupy different physical representation contexts, even when an exact transformation connects them.
 
 `structurally_related(source, target, transformation)` checks the transformation certificate, requires an exact non-approximate map applicable to the source, transforms the source, and compares the resulting target-side canonical structure with `target`. This preserves the fact that an exact nonlocal map can alter interaction topology without changing the underlying physical theory.
 

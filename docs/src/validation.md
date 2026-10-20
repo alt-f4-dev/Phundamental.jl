@@ -148,3 +148,21 @@ Likewise, an optimized backend being available does not imply that every source 
 For deterministic numerical comparisons, record the Julia version, thread count, BLAS thread count, solver backend, truncation or bath size, convergence tolerances, random seed for stochastic methods, and any environment variables used by a benchmark. The DMFT performance scripts explicitly recommend `OPENBLAS_NUM_THREADS=1` when measuring Julia-thread scaling so that nested BLAS threading does not obscure the source of speedup.
 
 The documentation records the reference calculations and their validity domains, while CSV outputs under `benchmarks/` remain the machine-readable source for detailed benchmark trajectories and frequency-resolved data.
+
+## F7 API integration and compatibility certification
+
+F7 adds cross-module regression gates for the construction and execution of both modern and legacy `ForwardProblem` calls. Full positional and keyword construction now enforce the same basic types and stage dependencies, and full positional `ForwardRoute` construction cannot bypass transformation or method-context checks. Compatibility certification remains a separate step: well-formed forward plans are not necessarily physically or numerically supported for every solver and observable.
+
+The structural spin regression follows a symmetry-generated Hamiltonian family through selection, parameter binding, exact diagonalization, spin-tensor response, magnetic neutron probe contraction, Gaussian instrument response, portable prediction serialization, and Gaussian measurement comparison. It compares the stages with a separately constructed Hamiltonian and uses an independently calculated residual norm to verify chi-square. This is a synthetic model-to-measurement regression, **not** an absolute neutron cross-section calibration or demonstration of inference over unknown structures.
+
+The independent material-to-measurement regression also checks direct versus policy-planned magnetic response; the harmonic phonon regression checks the coherent one-phonon intensity against the manual solver/probe path before experimental serialization; and the electronic regression checks local spectral-function portability and rejection of unsupported DMFT requests. These three branches deliberately use different observables and measurement conventions rather than treating all forward predictions as neutron-scattering intensities.
+
+`validate_forward_equivalence` accepts a selection of `:spectrum`, `:intrinsic`, `:probe`, and `:instrument` stages. The `:spectrum` stage requires both solutions to expose complete eigenenergy arrays; results from mode solvers or other non-eigenspectrum routes should be compared by their physical output stages. A missing eigenspectrum returns `false`, while invalid or repeated stage identifiers and nonfinite/negative tolerances are rejected. Stage agreement does not prove that the underlying approximation is physically valid or that independently simulated experimental data are representative of a real instrument.
+
+F7 does not expand solver support into multiorbital DMFT/DΓA, replace finite-cutoff convergence checks, derive periodic rotational sum rules without image-resolved force constants, or establish an instrument-specific response model. R1 must still certify clean installation, dependencies, release metadata and CI; R2 must add independent literature/science benchmarks; R3 must evaluate model-to-measurement validity beyond synthetic identities, including identifiable and ambiguous structures.
+
+The local validation command for the full API suite, including F7, is:
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.resolve(); Pkg.precompile(strict=true); Pkg.test()' && julia --project=docs docs/make.jl
+```

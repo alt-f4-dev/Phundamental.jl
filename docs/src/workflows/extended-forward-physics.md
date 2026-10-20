@@ -82,3 +82,43 @@ thermal_result = forward(ForwardProblem(model; solver=ThermodynamicForwardSolver
 The high-level requests reuse the existing result types, with no new thermodynamic or CPT numerical kernel. Static structure factors require supported full eigensystems or quadratic bosonic modes; stochastic thermodynamic requests cannot be combined with unrelated outer solver transformations unless their compatibility is explicitly established.
 
 `HarmonicMultiphononSliceRequest(probe; fixed_axis, fixed_value, horizontal_axis, horizontal_values, vertical_axis, vertical_values, qmesh_shape, energy_window, order=2, temperature=0, broadening=nothing)` lowers to `HarmonicPhononSolver` and then reuses `harmonic_neutron_slice` without a second instrumental probe contraction. Its current high-level domain requires three Cartesian dimensions. Supply `NuclearNeutronProbe` inside the request and do not also set `ForwardProblem.probe` or `ForwardProblem.resolution`, because integrated-slice instrument convolution is not currently defined. The existing numerical multiphonon engine provides `order=1`, `order=2`, and broadened higher-order/`:all` results; this request does not claim instrument-calibrated accuracy.
+
+## F5: Exact static magnetic response requests
+
+`MagneticSusceptibilityRequest(moment, temperatures; direction, kB, field_unit, moment_unit)` computes the static isothermal susceptibility from the **complete** Hermitian finite-basis eigenproblem, including off-diagonal moment matrix elements. It uses the Lehmann/Kubo response rather than assuming that $[H,M]=0$. The moment is a registered `Symbol`, `ObservableRef`, or explicit operator in the current representation. The caller certifies the physical direction and moment normalization, and the Zeeman convention is $H(B)=H(0)-BM$; `kB` must already be in the selected energy/temperature units. The current susceptibility request requires strictly positive temperatures, leaving ambiguous zero-temperature degenerate-state derivatives unsupported.
+
+`MagnetizationCurveRequest(moment, fields, temperatures; direction, kB, field_unit, moment_unit)` diagonalizes the finite Hamiltonian at each field and returns $\langle M\rangle_{B,T}$, with results ordered `(field, temperature)`; exact zero-temperature ground-manifold averaging is supported. Both requests produce `MagneticResponseCurve`, expose `request_requirements`, and execute through the standard high-level `ForwardProblem` with `ExactDiagonalization`. Partial eigensystems, biorthogonal models, implicit gyromagnetic conversions, collective-state thermodynamic limits, and stochastic thermal extrapolation are **not** certified by these request types.
+
+```julia
+request = MagneticSusceptibilityRequest(:mz, [0.5, 1.0, 2.0]; direction=:z, kB=1.0,
+                                        field_unit="field", moment_unit="conjugate_moment")
+result = forward(ForwardProblem(model; solver=ExactDiagonalization(), observable=request))
+chi = result.observable_result.values  # one field row, one column per temperature
+
+curve = MagnetizationCurveRequest(:mz, [-1.0, 0.0, 1.0], [0.5, 1.0, 2.0]; direction=:z,
+                                   field_unit="field", moment_unit="conjugate_moment")
+magnetization = forward(ForwardProblem(model; solver=ExactDiagonalization(), observable=curve)).observable_result.values
+```
+
+
+## F6: Matrix orbital propagation and orbital-resolved bubbles
+
+`MatrixMomentumLattice(hamiltonians; kpoints, weights, qmaps, labels)` stores Hermitian orbital Hamiltonians in `(orbital, orbital, k)` order, normalized momentum weights, and optional exact momentum-addition maps. `momentum_green(lattice, fermionic_axis, self_energy; chemical_potential)` evaluates $G(k,z)=[(z+\mu)I-H_0(k)-\Sigma(z)]^{-1}$ as a `MatrixMomentumResolvedGreenFunction` with values in `(a,b,k,frequency)` order. The local `lattice_green` returns a standard matrix-valued `GreenFunction` averaged with the same quadrature weights. The caller must supply a compatible matrix `SelfEnergy`; the existing `zero_self_energy(axis, n)` supports a noninteracting reference. The scalar `MomentumLattice`, scalar `momentum_green`, and one-orbital bubbles retain their pre-F6 storage and normalization.
+
+`OrbitalBravaisHopping(displacement, amplitude_matrix)` declares one directed cell hopping matrix; the Hermitian reverse is implicit, and reverse-direction duplicates are rejected. `matrix_bravais_momentum_lattice(material, shape, hoppings; onsite, orbital_positions, labels)` constructs a Bloch Hamiltonian with explicit orbital centers in **fractional direct-lattice coordinates**. In its periodic gauge (omitted `orbital_positions`), all centers are placed at the cell origin as a declared basis convention, **not** as inferred physical atomic positions. With centers $\tau_a$, its convention is $[H_0(k)]_{ab}=[H_{\mathrm{on}}]_{ab}+\sum_R [T_R]_{ab}e^{ik\cdot(R+\tau_b-\tau_a)}+\mathrm{h.c.}$ with the Hermitian counterpart understood as a matrix adjoint. Momentum coordinates are reduced radians on the primitive reciprocal basis. The material constructor defines an explicit one-particle model; it does not extract hopping coefficients from a many-body source. The `ManyBodyModel` overload requires the F2 spinful-component layout, structural-generation provenance, an explicit physical `max_range` bounded below half the shortest supercell translation, and an explicitly periodic reference with enough cells to resolve all hopping-image directions, and canonical equality between the complete generated Hamiltonian and the onsite-plus-directed-hopping operator reconstructed independently over the source supercell. Interactions, unmatched hopping terms, incorrect coefficients, and insufficient reference sizes are rejected. This is a certification of the explicit supplied matrices against the declared finite periodic model, not automated inference of unknown couplings or hidden periodic image directions.
+
+`orbital_lattice_bubble(green, qmaps, bosonic_axis; missing_frequency=:error)` returns `OrbitalLatticeBubble` objects indexed `(a,b,c,d,fermionic_frequency,bosonic_frequency)` using the finite-grid contraction $-\beta\sum_k w_k G_{ac}(k+q,\nu+\Omega)G_{db}(k,\nu)$. The second fermionic-frequency index is diagonal and therefore omitted from storage. Missing Matsubara shifts either raise an error or are explicitly set to zero with diagnostic counts. The current bare-bubble contraction requires the **periodic Bloch gauge**. A matrix lattice constructed with noninteger fractional orbital centers is marked `gauge=:embedded`, and orbital bubbles reject it until the required reciprocal-zone folding and orbital-vertex phase transport are implemented. Matrix Green functions and local weighted propagators remain valid in that gauge. This is the **bare orbital-pair susceptibility**; it is not a fully screened multiorbital susceptibility, multiorbital Bethe–Salpeter solver, or tensor-valued DΓA solver. It does not reuse the scalar `GeneralizedSusceptibility` type or its channel approximations.
+
+```julia
+axis = FermionicMatsubaraAxis(5.0, collect(-3:3))
+baxis = BosonicMatsubaraAxis(5.0, [0])
+onsite = ComplexF64[0.4 0.2; 0.2 -0.1]
+hopping = OrbitalBravaisHopping((1,), ComplexF64[-0.6 0; 0 -0.3])
+lattice = matrix_bravais_momentum_lattice(material, (32,), [hopping]; onsite=onsite, labels=[:a, :b])
+sigma = zero_self_energy(axis, 2; labels=[:a, :b])
+green = momentum_green(lattice, axis, sigma)
+local_green = lattice_green(lattice, axis, sigma)
+bubbles, diagnostics = orbital_lattice_bubble(green, lattice.qmaps, baxis)
+```
+
+The `material` variable in the example must refer to a previously constructed one-dimensional `Material`; hopping matrices and Wannier centers are explicit user inputs. The current impurity solvers are single-orbital and spin-degenerate. `DMFTProblem` and `DMFTForwardContext` reject `MatrixMomentumLattice`; matrix one-particle Dyson propagation does **not** authorize multiorbital ED-DMFT or ladder-DΓA execution. Those require independently implemented and validated matrix impurity and local vertex backends.

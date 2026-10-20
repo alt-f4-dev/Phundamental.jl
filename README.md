@@ -6,7 +6,7 @@
 
 The package supports symbolic many-body operator algebra, representation transformations, crystallographic invariant generation, finite-cluster and specialized numerical solvers, scattering observables, equilibrium thermodynamics, finite-temperature Green functions, and finite-bath embedding workflows including normal-state single-site exact-diagonalization dynamical mean-field theory (ED-DMFT).
 
-The current stable release is `v0.0.9`. 
+The current stable release is `v0.1.0`. 
 
 ## Documentation
 
@@ -21,11 +21,11 @@ The complete documentation is the primary reference for the public API, mathemat
 
 ## Installation
 
-`Phundamental.jl` is currently installed directly from GitHub. To install the stable `v0.0.9` release:
+`Phundamental.jl` is currently installed directly from GitHub. To install the stable `v0.1.0` release:
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/alt-f4-dev/Phundamental.jl", rev="v0.0.9")
+Pkg.add(url="https://github.com/alt-f4-dev/Phundamental.jl", rev="v0.1.0")
 ```
 
 Then load the package normally:
@@ -195,7 +195,7 @@ The embedding layer provides finite discrete Anderson baths, constrained and unc
 
 ### Physical model-space admissibility
 
-The model-space architecture extends the earlier stable forward-API baseline by establishing physical model-space admissibility as a prerequisite for universal Hamiltonian generation. `AbstractModelSpace`, `GenerativeSpecification`, `HamiltonianSpace`, and `admissibility_report` define the physical hypothesis-space boundary independently of numerical solver support. Reports distinguish failed criteria from unevaluated criteria, validate operator-algebra and body-order constraints, and require an explicit physical `range_evaluator` whenever `max_range` is declared. Generated spaces and generated/reparameterized models are checked before they are returned, while direct `HamiltonianSpace` construction remains available for inspecting externally supplied or incompletely certified bases. Batch 8 adds canonical algebraic span certification when numeric linear coordinates are available.
+The model-space architecture extends the earlier stable forward-API baseline by establishing physical model-space admissibility as a prerequisite for universal Hamiltonian generation. `AbstractModelSpace`, `GenerativeSpecification`, `HamiltonianSpace`, and `admissibility_report` define the physical hypothesis-space boundary independently of numerical solver support. Reports distinguish failed criteria from unevaluated criteria, validate operator-algebra and body-order constraints, and require an explicit physical `range_evaluator` whenever `max_range` is declared. Generated spaces and generated/reparameterized models are checked before they are returned, while direct `HamiltonianSpace` construction remains available for inspecting externally supplied or incompletely certified bases. Canonical algebraic span certification is also available when numeric linear coordinates can be determined.
 
 ```julia
 spec = GenerativeSpecification(:C1, (:site_1,), (SpinHilbertSpace([1//2]),), SpinAlgebra(1), identity; max_body_order=1)
@@ -287,21 +287,17 @@ Phundamental.jl/
 
 ## Release scope
 
-`v0.0.9` extends the stable `v0.0.8` forward-API baseline with physical model-space admissibility, canonical coefficient-independent Hamiltonian structures, equality-constrained parameter schemas, material-aware crystallographic invariant-basis generation, symmetry-complete structural selection and search, deterministic structural identifiers, selection-to-model instantiation, and structural forward closure. The earlier forward architecture provides solver-independent response requests, composite and spin-phonon response matrices, response conversions, request/solver compatibility, high-level DMFT/DΓA/NLCE integration, and deterministic policy-governed execution planning.
-
-The stable planner may automatically choose compatible certified exact routes, but physical approximations remain explicit and policy-controlled. The current ED-DMFT implementation targets the normal-state single-site single-band problem; superconducting ED-DMFT and broader impurity geometries remain outside the validated normal-state ED-DMFT scope.
-
 For complete API details and current development status, use the [stable documentation](https://alt-f4-dev.github.io/Phundamental.jl/stable/) or [development documentation](https://alt-f4-dev.github.io/Phundamental.jl/dev/).
 
 
 ## Canonical Hamiltonian structure
 
-Physical model-space admissibility and numerical solver compatibility are separate contracts. Batch 8 additionally exposes a coefficient-independent canonical Hamiltonian structure through `structure(model)`, `structural_signature(model)`, and `interaction_graph(model)`. `structurally_equivalent(a, b)` compares canonical structures only inside the same physical representation context; exact cross-representation equivalence remains explicit through `structurally_related(source, target, transformation)`.
+Physical model-space admissibility and numerical solver compatibility are separate contracts. Additionally, the module exposes a coefficient-independent canonical Hamiltonian structure through `structure(model)`, `structural_signature(model)`, and `interaction_graph(model)`. `structurally_equivalent(a, b)` compares canonical structures only inside the same physical representation context; exact cross-representation equivalence remains explicit through `structurally_related(source, target, transformation)`.
 
 
 ## Constraint-bearing parameter schemas
 
-Batch 9 extends the existing `ParameterSpace` rather than introducing a parallel schema hierarchy. Named real couplings can carry fixed-value, shared/equality, and general linear constraints, while `ParameterBinding` associates each coupling with the Batch 8 structural signature of the Hamiltonian-basis direction that it multiplies.
+Named real couplings can carry fixed-value, shared/equality, and general linear constraints, while `ParameterBinding` associates each coupling with the structural signature of the Hamiltonian-basis direction that it multiplies.
 
 ```julia
 constraint = EqualParameterConstraint(:Jx, :Jy)
@@ -315,7 +311,7 @@ The parameter layer answers whether $\boldsymbol\theta\in\Theta(\mathfrak G)$; i
 
 ## Material- and crystallography-aware Hamiltonian generation
 
-Batch 10 coordinates the existing material, crystallography, model-space, structural, and parameter machinery through `generate_hamiltonian_family`. The material-aware route converts three-dimensional material geometry into a backend-neutral crystallographic structure, resolves or accepts the space-group dataset, generates the symmetry-invariant Hermitian Hamiltonian basis, audits Batch 7 physical admissibility, extracts the Batch 8 canonical structure, and constructs the Batch 9 parameter schema.
+The module coordinates the existing material, crystallography, model-space, structural, and parameter machinery through `generate_hamiltonian_family`. The material-aware route converts three-dimensional material geometry into a backend-neutral crystallographic structure, resolves or accepts the space-group dataset, generates the symmetry-invariant Hermitian Hamiltonian basis, audits physical admissibility, extracts the canonical structure, and constructs the parameter schema.
 
 ```julia
 # `material_3d` is a three-dimensional Material.
@@ -327,4 +323,4 @@ println(parameter_dof(family.parameter_space))
 
 `HamiltonianGenerationResult` keeps the material source, optional periodic supercell, crystallographic structure and dataset, `GenerativeSpecification`, `HamiltonianSpace`, `ModelStructure`, and `ParameterSpace` separately inspectable. The standard crystallographic action assumes one symbolic operator index per crystallographic site; richer orbital or internal-component conventions must provide a custom symmetry action and local-space convention explicitly. When `max_range` is declared under the standard site mapping, the generator supplies a geometry-aware range evaluator rather than interpreting symbolic indices as distances.
 
-The material-only route addresses primitive-cell-indexed degrees of freedom. Use the periodic-supercell overload when translated sites must be distinct operator supports. Structural neighborhoods and finite hierarchies are provided by Batch 11. Batch 12 connects selected structures to model instantiation and the existing forward-physics stack through deterministic machine-readable interfaces.
+The material-only route addresses primitive-cell-indexed degrees of freedom. Use the periodic-supercell overload when translated sites must be distinct operator supports. Structural neighborhoods and finite hierarchies are provided and selected structures are passed to model instantiation and the existing forward-physics stack through deterministic machine-readable interfaces.

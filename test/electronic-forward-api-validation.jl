@@ -109,4 +109,28 @@ end
         @test resolved.result.metadata[:resolution_applied] === true
         @test Phundamental.Observables.validate_observable_equivalence(resolved.result, manual_resolved; rtol=1e-10, atol=1e-12)
     end
+
+    @testset "F7 local-electronic experimental contract" begin
+        model = build_model(material, cluster, HubbardModel(t, 1.0; shell=1))
+        axis = collect(range(-2.0, 3.0; length=301))
+        solver = OptimizedLanczos(nev=1, krylov_dim=4, tol=1e-12, sector=sector,
+                                  backend=:fermion, reorthogonalize=true, seed=17)
+        request = LocalElectronSpectralFunctionRequest(axis; spin=:up, sites=[1], eta=0.05,
+            normalization=:spectral_density, green_krylov_dim=2, tol=1e-12,
+            green_reorthogonalize=true, parallel=false)
+        calculation = forward(ForwardProblem(model; solver=solver, observable=request))
+        prediction = portable_prediction(calculation; stage=:intrinsic, coordinate_frame=:site,
+                                         coordinate_unit="site_index", spectral_unit="eV", intensity_unit="states/eV",
+                                         normalization="local", spectral_kind=:energy)
+        @test prediction.grid.coordinate_role === :site
+        @test prediction.grid.coordinate_frame === :site
+        @test import_result(export_result(prediction)).intensity ≈ prediction.intensity
+        measured = experimental_dataset(prediction.grid, Float64.(real.(prediction.intensity));
+                                        uncertainty=fill(0.04, size(prediction.intensity)),
+                                        intensity_unit="states/eV", normalization="local")
+        @test isapprox(compare_measurement(prediction, measured).chi_squared, 0.0; atol=1e-10)
+        @test validate_forward_equivalence(calculation, calculation; compare=(:intrinsic, :instrument)).valid
+        @test !solver_compatibility(DMFTSolver(), model, request).compatible
+    end
+
 end

@@ -1394,8 +1394,7 @@ let
     # Geometry helpers.
     # -------------------------------------------------------------------------
 
-    det2(Smat::AbstractMatrix{<:Integer}) =
-        Smat[1, 1] * Smat[2, 2] - Smat[1, 2] * Smat[2, 1]
+    det2(Smat::AbstractMatrix{<:Integer}) = Smat[1, 1] * Smat[2, 2] - Smat[1, 2] * Smat[2, 1]
 
     function quotient_cells(Smat::Matrix{Int})
         ncells = abs(det2(Smat))

@@ -107,3 +107,17 @@ function dynamic_static_sumrule_residual(dynamic::SpectrumResult, static::Static
     denom = max.(abs.(target), eps(Float64))
     return norm((integrated .- target) ./ denom) / sqrt(length(target))
 end
+
+"""Compare two intrinsic harmonic displacement tensors without treating them as probe-contracted scattering intensities."""
+function validate_observable_equivalence(A::PhononStructureFactorResult, B::PhononStructureFactorResult;
+                                         atol::Real=1e-10, rtol::Real=1e-8)
+    length(A.axis) == length(B.axis) || return false
+    length(A.q) == length(B.q) || return false
+    all(isapprox(a, b; atol=atol, rtol=rtol) for (a, b) in zip(A.axis, B.axis)) || return false
+    all(isequal(a, b) || (applicable(isapprox, a, b) && isapprox(a, b; atol=atol, rtol=rtol)) for (a, b) in zip(A.q, B.q)) || return false
+    size(A.intensity) == size(B.intensity) || return false
+    for key in (:spectral_axis, :normalization, :temperature, :reduction_convention)
+        get(A.metadata, key, nothing) == get(B.metadata, key, nothing) || return false
+    end
+    return isapprox(A.intensity, B.intensity; atol=atol, rtol=rtol)
+end

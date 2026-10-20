@@ -12,3 +12,8 @@
 
 #OS/editor artifacts
 .DS_Store
+
+#Benchmark environment and generated outputs
+/benchmarks/Manifest.toml
+/benchmarks/benchmark-figures/
+/benchmarks/dmft/results/

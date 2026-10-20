@@ -111,7 +111,7 @@ context = NLCEForwardContext(4; inner_solver=ExactDiagonalization())
 calculation = forward(ForwardProblem(model; solver=NLCESolver(), method_context=context, observable=request))
 ```
 
-`calculation.solution` is the full `NLCEResult`, including order-resolved partial sums and convergence diagnostics, while `calculation.observable_result` is `bulk_estimate(calculation.solution)`. Batch 5 deliberately restricts this high-level recursive route to `ObservableRequest` values that are `Number`s or `AbstractArray`s, because linked-cluster addition and subtraction must be mathematically defined for the returned quantity. Typed spectral-container reconstruction remains a later extension rather than an implicit coercion.
+`calculation.solution` is the full `NLCEResult`, including order-resolved partial sums and convergence diagnostics, while `calculation.observable_result` is `bulk_estimate(calculation.solution)`. The high-level NLCE interface deliberately restricts this recursive route to `ObservableRequest` values that are `Number`s or `AbstractArray`s, because linked-cluster addition and subtraction must be mathematically defined for the returned quantity. Typed spectral-container reconstruction remains a later extension rather than an implicit coercion.
 
 `NLCEForwardContext(inner_transformation=...)` may apply an explicitly selected transformation inside every cluster forward calculation. An outer `ForwardProblem.transformation` is rejected for `NLCESolver` so the source-model specification used to generate clusters cannot be silently replaced or ignored.
 

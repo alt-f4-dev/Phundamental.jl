@@ -128,6 +128,24 @@ end
         @test_throws ArgumentError B12.forward_batch(prepared, [])
         @test_throws ArgumentError B12.forward_parameters(prepared, Dict(:h1 => 0.7, :h2 => 0.3))
         @test isapprox(B12.forward(selection, representation, [0.7, 0.3]).solution.energies, output.solution.energies; atol=1e-12)
+        # F7: the complete structural pipeline retains physical selection provenance through the experimental boundary.
+        agreement = B12.validate_forward_equivalence(output, reference)
+        @test agreement.valid
+        @test all(Base.values(agreement.checks))
+        prediction = B12.portable_prediction(output; stage=:instrument, coordinate_frame=:cartesian,
+            coordinate_unit="1/Å", spectral_unit="meV", intensity_unit="arb/meV", normalization="per_spin")
+        @test prediction.provenance["forward"]["selection_id"] == B12.structural_id(selection)
+        @test prediction.provenance["forward"]["family_id"] == B12.structural_id(family)
+        @test B12.import_result(B12.export_result(prediction)).intensity ≈ prediction.intensity
+        observed = Float64.(real.(prediction.intensity)) .+ 0.1
+        measured = B12.experimental_dataset(prediction.grid, observed; uncertainty=fill(0.25, size(observed)),
+            intensity_unit="arb/meV", normalization="per_spin")
+        comparison = B12.compare_measurement(prediction, measured)
+        @test comparison.nvalid == length(observed)
+        @test isapprox(comparison.chi_squared, comparison.nvalid * (0.1 / 0.25)^2; atol=1e-8, rtol=1e-8)
+        @test B12.compare_measurement(B12.import_result(B12.export_result(prediction)),
+            B12.import_result(B12.export_result(measured))).chi_squared ≈ comparison.chi_squared
+        @test B12.forward_parameters(prepared, Dict(:h1 => 0.7, :J12 => 0.3)).solution.energies ≈ output.solution.energies
     end
 
     @testset "Geometric range uses the closest Cartesian periodic image for skew cells" begin

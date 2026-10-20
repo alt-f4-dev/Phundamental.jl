@@ -329,7 +329,7 @@ validate_diagrammatic_dmft_result
 
 ## High-level forward integration
 
-Batch 5 connects the existing embedding solvers to the common `ForwardProblem` pathway without replacing their expert-level problem APIs. `DMFTForwardContext` supplies the lattice embedding, temperature, and fermionic Matsubara axis needed to lower a direct single-band `HubbardModel` into `DMFTProblem`; the interaction and chemical potential remain authoritative on the source model. `LocalMatsubaraGreenFunctionRequest` and `LocalMatsubaraSelfEnergyRequest` then select the intrinsic output while the raw `DMFTResult` remains available as `ForwardResult.solution`.
+The forward integration connects the existing embedding solvers to the common `ForwardProblem` pathway without replacing their expert-level problem APIs. `DMFTForwardContext` supplies the lattice embedding, temperature, and fermionic Matsubara axis needed to lower a direct single-band `HubbardModel` into `DMFTProblem`; the interaction and chemical potential remain authoritative on the source model. `LocalMatsubaraGreenFunctionRequest` and `LocalMatsubaraSelfEnergyRequest` then select the intrinsic output while the raw `DMFTResult` remains available as `ForwardResult.solution`.
 
 `LadderDGAForwardContext` performs the corresponding end-to-end lowering for `DiagrammaticDMFTSolver(method=LadderDGA(...))`. The context carries one `MomentumLattice`, the prerequisite `DMFTSolver`, compatible fermionic and bosonic Matsubara axes, and the impurity two-particle backend or precomputed impurity object. `MatsubaraSusceptibilityRequest(:charge)` and `MatsubaraSusceptibilityRequest(:magnetic)` select the observable channel. The converged DMFT reference remains embedded in `LadderDGAResult.problem.dmft_result`, so the high-level route does not collapse local-reference provenance into the final susceptibility.
 
@@ -421,3 +421,8 @@ For threaded runs, start Julia with more than one Julia thread, for example `jul
 ## Geometry-derived single-band embedding
 
 A Bravais hopping set can be compiled into the existing `MomentumLattice` and its exact momentum-addition maps with `bravais_momentum_lattice`. This requires an explicitly declared one-orbital Hamiltonian hopping convention; it is not a general multiorbital band-structure generator. See [Extended Forward Physics](../workflows/extended-forward-physics.md).
+
+
+## Explicit matrix-valued momentum embeddings
+
+`MatrixMomentumLattice`, `OrbitalBravaisHopping`, and `matrix_bravais_momentum_lattice` represent explicitly supplied orbital Hamiltonian matrices and directional hopping matrices without assuming that a generated many-body model has already been reduced to a unique one-particle Bloch Hamiltonian. The `ManyBodyModel` overload certifies exact finite-reference reconstruction from caller-declared image-resolved hoppings before accepting the mapping. These objects support matrix Dyson evaluation and weighted local propagators, not the scalar ED-DMFT fixed-point solver.

@@ -240,3 +240,15 @@ function request_requirements(request::HarmonicMultiphononSliceRequest)
                                response_order=2, operator_channels=(:displacement,), temperature=request.temperature,
                                metadata=copy(request.metadata))
 end
+
+function request_requirements(request::MagneticSusceptibilityRequest)
+    return RequestRequirements(request_kind=:magnetic_susceptibility, response_kind=:static_susceptibility,
+                               frequency_domain=:static, statistics=:canonical, momentum_scope=:bulk,
+                               response_order=2, operator_channels=(request.direction,), metadata=copy(request.metadata))
+end
+
+function request_requirements(request::MagnetizationCurveRequest)
+    return RequestRequirements(request_kind=:magnetization_curve, response_kind=:magnetization,
+                               frequency_domain=:static, statistics=:canonical, momentum_scope=:bulk,
+                               response_order=1, operator_channels=(request.direction,), metadata=copy(request.metadata))
+end

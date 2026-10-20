@@ -19,7 +19,7 @@ const _DEFAULT_FORWARD_SOLVER_PREFERENCE = (
 """
     ForwardExecutionPolicy(; allowed_approximations=(), require_certified=true, include_default_exact_routes=true, solver_preference=_DEFAULT_FORWARD_SOLVER_PREFERENCE)
 
-Policy governing automatic forward-route selection. Exact numerical routes are permitted by default. Physical approximations must be named explicitly in `allowed_approximations`. `require_certified=true` rejects routes whose Batch 4 compatibility report cannot be statically certified. The policy never determines whether a Hamiltonian is physically admissible.
+Policy governing automatic forward-route selection. Exact numerical routes are permitted by default. Physical approximations must be named explicitly in `allowed_approximations`. `require_certified=true` rejects routes whose solver-compatibility report cannot be statically certified. The policy never determines whether a Hamiltonian is physically admissible.
 """
 struct ForwardExecutionPolicy
     allowed_approximations::Tuple
@@ -57,12 +57,22 @@ struct ForwardRoute{S,T,C,A,K}
     solver_args::A
     solver_kwargs::K
     label::Symbol
+
+    function ForwardRoute(solver::S, transformation::T, method_context::C, solver_args::A, solver_kwargs::K,
+                          label::Symbol) where {S,T,C,A,K}
+        solver isa AbstractSolver || throw(ArgumentError("forward route solver must be an AbstractSolver"))
+        (isnothing(transformation) || transformation isa AbstractTransformation) ||
+            throw(ArgumentError("transformation must be AbstractTransformation or nothing"))
+        (isnothing(method_context) || method_context isa AbstractForwardMethodContext) ||
+            throw(ArgumentError("method_context must be AbstractForwardMethodContext or nothing"))
+        solver_args isa Tuple || throw(ArgumentError("solver_args must be a Tuple"))
+        solver_kwargs isa NamedTuple || throw(ArgumentError("solver_kwargs must be a NamedTuple"))
+        return new{S,T,C,A,K}(solver, transformation, method_context, solver_args, solver_kwargs, label)
+    end
 end
 
 function ForwardRoute(solver::AbstractSolver; transformation=nothing, method_context=nothing, solver_args::Tuple=(), solver_kwargs::NamedTuple=(;),
                       label::Union{Nothing,Symbol}=nothing)
-    !isnothing(transformation) && !(transformation isa AbstractTransformation) && throw(ArgumentError("transformation must be AbstractTransformation or nothing"))
-    !isnothing(method_context) && !(method_context isa AbstractForwardMethodContext) && throw(ArgumentError("method_context must be AbstractForwardMethodContext or nothing"))
     route_label = isnothing(label) ? solver_name(solver) : label
     return ForwardRoute(solver, transformation, method_context, solver_args, solver_kwargs, route_label)
 end

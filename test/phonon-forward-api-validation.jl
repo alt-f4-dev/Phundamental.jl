@@ -78,4 +78,33 @@ using LinearAlgebra
     reference_lines = one_phonon_neutron_lines(model, 0.25; solver=solver, probe=probe, temperature=0.0, convention=convention)
     @test isapprox(reference_lines.centers, [1.2360679774997898, 3.23606797749979]; rtol=1e-12, atol=1e-12)
     @test isapprox(real.(reference_lines.weights), [1.268218467143, 0.087435304654]; rtol=1e-11, atol=1e-12)
+
+    @testset "F7 phonon spectrum-to-experiment portability" begin
+        prediction = portable_prediction(calculation; stage=:instrument, coordinate_frame=:reciprocal,
+                                         coordinate_unit="rlu", spectral_unit="rad/ps", intensity_unit="arb",
+                                         normalization="one_phonon", spectral_kind=:omega)
+        @test prediction.stage === :instrument
+        @test prediction.grid.spectral_kind === :omega
+        @test prediction.grid.coordinate_frame === :reciprocal
+        @test prediction.intensity ≈ manual_result.intensity
+        measured = experimental_dataset(prediction.grid, Float64.(real.(prediction.intensity));
+                                        uncertainty=fill(0.1, size(prediction.intensity)),
+                                        intensity_unit="arb", normalization="one_phonon")
+        @test isapprox(compare_measurement(prediction, measured).chi_squared, 0.0; atol=1e-10)
+        @test compare_measurement(import_result(export_result(prediction)), import_result(export_result(measured))).chi_squared ≈ 0.0 atol=1e-10
+        @test_throws ArgumentError portable_prediction(calculation; stage=:instrument, coordinate_frame=:reciprocal,
+            coordinate_unit="rlu", spectral_unit="rad/ps", intensity_unit="arb", normalization="one_phonon", spectral_kind=:energy)
+        equivalent = validate_forward_equivalence(calculation, calculation; compare=(:intrinsic, :probe, :instrument))
+        @test equivalent.valid
+        intrinsic = calculation.observable_result
+        copied_intrinsic = Phundamental.Observables.PhononStructureFactorResult(intrinsic.model, copy(intrinsic.q),
+            copy(intrinsic.axis), copy(intrinsic.intensity), copy(intrinsic.metadata))
+        @test Phundamental.Observables.validate_observable_equivalence(intrinsic, copied_intrinsic)
+        @test !Phundamental.Observables.validate_observable_equivalence(intrinsic,
+            Phundamental.Observables.PhononStructureFactorResult(intrinsic.model, copy(intrinsic.q),
+                copy(intrinsic.axis), 1.01 .* intrinsic.intensity, copy(intrinsic.metadata)))
+        @test !validate_forward_equivalence(calculation, calculation; compare=(:spectrum,)).valid
+        @test_throws ArgumentError validate_forward_equivalence(calculation, calculation; compare=())
+    end
+
 end

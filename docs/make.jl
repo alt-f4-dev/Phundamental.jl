@@ -23,13 +23,26 @@ const DOCUMENTATION_PAGES = [
     "Getting Started" => "getting-started.md",
     "Architecture" => "architecture.md",
     "Modules" => [
-        "Core / Foundation" => "modules/core.md",
+        "Core / Foundation" => [
+            "Concepts" => "modules/core.md",
+            "States, Operators, and Representations" => "modules/core-reference-operators.md",
+            "Model Structures and Interchange" => "modules/core-reference-models.md",
+        ],
         "Algebra" => "modules/algebra.md",
         "Crystallography" => "modules/crystallography.md",
         "Transformations" => "modules/transformations.md",
         "Models" => "modules/models.md",
-        "Solvers" => "modules/solvers.md",
-        "Observables" => "modules/observables.md",
+        "Solvers" => [
+            "Overview" => "modules/solvers.md",
+            "Protocol, Capabilities, and Bases" => "modules/solvers-reference-foundation.md",
+            "Quadratic and Collective Modes" => "modules/solvers-reference-modes.md",
+            "Krylov, Fermionic, and Classical Methods" => "modules/solvers-reference-methods.md",
+        ],
+        "Observables" => [
+            "Concepts" => "modules/observables.md",
+            "Descriptors and Correlations" => "modules/observables-reference-core.md",
+            "Probe and Instrument APIs" => "modules/observables-reference-neutron.md",
+        ],
         "Thermodynamics" => "modules/thermodynamics.md",
         "Greens" => "modules/greens.md",
         "Embedding" => "modules/embedding.md",
@@ -51,8 +64,8 @@ const DOCUMENTATION_PAGES = [
     "Validation" => "validation.md",
 ]
 
-const GITHUB_REPOSITORY = get(ENV, "GITHUB_REPOSITORY", "")
-const DOCUMENTATION_REPOSITORY = isempty(GITHUB_REPOSITORY) ? nothing : GitHub(GITHUB_REPOSITORY)
+const GITHUB_REPOSITORY = get(ENV, "GITHUB_REPOSITORY", "alt-f4-dev/Phundamental.jl")
+const DOCUMENTATION_REPOSITORY = GitHub(GITHUB_REPOSITORY)
 
 const MAKEDOCS_OPTIONS = (
     modules=DOCUMENTED_MODULES,
@@ -65,18 +78,15 @@ const MAKEDOCS_OPTIONS = (
         sidebar_sitename=true,
         collapselevel=1,
         edit_link="main",
+        # Preserve searchable API entries while warning if the full index exceeds an explicit 800 KiB budget.
+        search_size_threshold_warn=800 * 1024,
     ),
     pages=DOCUMENTATION_PAGES,
 )
 
-if isnothing(DOCUMENTATION_REPOSITORY)
-    makedocs(; MAKEDOCS_OPTIONS..., remotes=nothing)
-else
-    makedocs(; MAKEDOCS_OPTIONS..., repo=DOCUMENTATION_REPOSITORY)
-end
+makedocs(; MAKEDOCS_OPTIONS..., repo=DOCUMENTATION_REPOSITORY)
 
 if get(ENV, "GITHUB_ACTIONS", "false") == "true"
-    isempty(GITHUB_REPOSITORY) && error("GITHUB_REPOSITORY is required for documentation deployment")
     deploydocs(
         repo="github.com/$(GITHUB_REPOSITORY).git",
         devbranch=get(ENV, "PHUNDAMENTAL_DOCS_DEVBRANCH", "main"),

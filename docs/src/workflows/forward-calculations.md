@@ -27,7 +27,7 @@ const M = Phundamental.Models
 lattice = BravaisLattice(reshape([1.0], 1, 1))
 crystal = M.CrystalStructure(lattice, [BasisSite(:X, :X, [0.0])])
 
-species = Dict(:X => AtomicSpecies(:X; mass=1.0)
+species = Dict(:X => AtomicSpecies(:X; mass=1.0))
 props = [SiteProperties(spin=1//2)]
 
 
@@ -107,11 +107,11 @@ if report.compatible
 end
 ```
 
-`compatible_solvers(model, request, candidates)` filters a caller-supplied collection of solver instances without ranking or selecting among them. Compatibility remains a factual implementation query; Batch 6 execution planning consumes these reports under an explicit policy and never turns compatibility itself into approximation authorization.
+`compatible_solvers(model, request, candidates)` filters a caller-supplied collection of solver instances without ranking or selecting among them. Compatibility remains a factual implementation query; Forward execution planning consumes these reports under an explicit policy and never turns compatibility itself into approximation authorization.
 
 Physical/model-space admissibility is a separate question. A Hamiltonian can be physically admissible under a generative specification while remaining unsupported by every current solver. Conversely, a numerically executable Hamiltonian is not thereby certified as a valid member of a physical hypothesis space.
 
-The forward layer checks typed solver/request compatibility before execution and isolates method-specific numerical input construction behind the request-aware solve boundary. Direct model solvers and the harmonic-phonon momentum path continue to use this boundary, while Batch 5 extends it to explicit single-site DMFT, ladder-DΓA, and finite-reference NLCE routes.
+The forward layer checks typed solver/request compatibility before execution and isolates method-specific numerical input construction behind the request-aware solve boundary. Direct model solvers and the harmonic-phonon momentum path continue to use this boundary, and context-backed execution supports explicit single-site DMFT, ladder-DΓA, and finite-reference NLCE routes.
 
 ## Explicit method contexts for embedding and NLCE
 
@@ -130,13 +130,13 @@ result = forward(ForwardProblem(model; solver=dmft_solver, method_context=contex
 
 For the end-to-end one-shot ladder-DΓA route, `LadderDGAForwardContext` records the converged-DMFT prerequisite machinery and the explicit Matsubara boxes. `MatsubaraSusceptibilityRequest(:charge)` and `MatsubaraSusceptibilityRequest(:magnetic)` select the physical output channel without changing the diagrammatic method. The resulting susceptibility remains in the Matsubara domain and therefore advertises `requires_analytic_continuation(result) == true`.
 
-Finite-reference NLCE uses `NLCEForwardContext(max_order; inner_solver=...)`. Each generated cluster is evaluated recursively through the same `ObservableRequest` and ordinary `ForwardProblem` machinery, after which `NLCESolver` performs linked-cluster subtraction and reconstruction. Batch 5 restricts this high-level route to custom requests whose cluster values are additive scalars or arrays; richer typed response reconstruction can be added without changing the method-context boundary. The raw `NLCEResult` remains available as `ForwardResult.solution`, while `ForwardResult.observable_result` is the reconstructed `bulk_estimate`.
+Finite-reference NLCE uses `NLCEForwardContext(max_order; inner_solver=...)`. Each generated cluster is evaluated recursively through the same `ObservableRequest` and ordinary `ForwardProblem` machinery, after which `NLCESolver` performs linked-cluster subtraction and reconstruction. The high-level NLCE interface restricts this route to custom requests whose cluster values are additive scalars or arrays; richer typed response reconstruction can be added without changing the method-context boundary. The raw `NLCEResult` remains available as `ForwardResult.solution`, while `ForwardResult.observable_result` is the reconstructed `bulk_estimate`.
 
 These three high-level routes deliberately reject an outer `transformation` because their computational problems are constructed from the physical source-model specification. Any cluster-level transformation for NLCE must instead be supplied explicitly as `NLCEForwardContext(inner_transformation=...)`. This prevents an exact or approximate representation operation from being silently ignored during method-specific lowering.
 
 ## Policy-governed execution planning
 
-`plan_forward` separates route selection from execution. It evaluates deterministic `ForwardRoute` candidates against Batch 4 compatibility, applies a `ForwardExecutionPolicy`, and returns the selected route as an ordinary inspectable `ForwardProblem`. The default policy supplies only context-free exact routes, authorizes no physical approximation, and requires static compatibility certification.
+`plan_forward` separates route selection from execution. It evaluates deterministic `ForwardRoute` candidates against solver-compatibility reports, applies a `ForwardExecutionPolicy`, and returns the selected route as an ordinary inspectable `ForwardProblem`. The default policy supplies only context-free exact routes, authorizes no physical approximation, and requires static compatibility certification.
 
 ```julia
 plan = plan_forward(model, request)
@@ -159,7 +159,7 @@ result = forward(plan)
 
 A ladder-DΓA route carries both the single-site-DMFT reference approximation and the ladder-DΓA approximation, so both symbols must be authorized. NLCE similarly includes any approximation used by its explicitly configured inner solver in addition to `:finite_order_nlce`. This prevents nested approximate methods from being hidden behind one outer solver label.
 
-`ForwardRoute` may carry an outer representation transformation, but automatic planning accepts that transformation only when its `TransformationCertificate` declares it exact and non-approximate. Approximate representation operations remain explicit calculations outside the planner. DMFT, DΓA, and NLCE retain their Batch 5 prohibition on outer transformations because their numerical problems are reconstructed from the physical source-model specification.
+`ForwardRoute` may carry an outer representation transformation, but automatic planning accepts that transformation only when its `TransformationCertificate` declares it exact and non-approximate. Approximate representation operations remain explicit calculations outside the planner. DMFT, DΓA, and NLCE retain their restriction against outer transformations because their numerical problems are reconstructed from the physical source-model specification.
 
 When no candidate is both computationally compatible and policy-permitted, `plan_forward` throws `ForwardPlanningError`. The attached `ForwardPlanningReport` retains every candidate assessment, including compatibility diagnostics, approximation identities, certification state, method-context identity, and policy rejection reasons. A planned calculation also propagates the selected solver, approximation tuple, and certification state into mutable solution/observable metadata when available.
 
@@ -262,3 +262,22 @@ A forward calculation intended for publication or regression testing should reco
 - [Transformations](../modules/transformations.md) for exact maps and approximations.
 - [Solvers](../modules/solvers.md) for numerical capability analysis and computational compatibility.
 - [Observables](../modules/observables.md) for intrinsic response, probes, and resolution.
+
+## F7 — End-to-end experiment and compatibility boundaries
+
+A complete typed forward calculation keeps the intrinsic observable, the probe response and the instrument result separately available. The experimental record should be constructed from the chosen stage, with explicit coordinate frame, spectral units, intensity units, and normalization. Only real-frequency numerical spectral results can be exported as measurements: Matsubara Green functions and susceptibilities require a separately justified continuation.
+
+```julia
+calculation = forward(ForwardProblem(model; observable=request, probe=probe, resolution=resolution))
+prediction = portable_prediction(calculation; stage=:instrument, coordinate_frame=:cartesian,
+    coordinate_unit="1/Å", spectral_unit="meV", intensity_unit="arb/meV", normalization="per_spin")
+measured = experimental_dataset(prediction.grid, measured_intensity; uncertainty=measured_sigma,
+    intensity_unit="arb/meV", normalization="per_spin")
+report = compare_measurement(prediction, measured)
+```
+
+This example assumes the model, request, probe, resolution, measured values and Gaussian uncertainties were already constructed, and that the selected stage has the stated physical units. The code does not convert arbitrary model intensities into calibrated cross sections. Poisson comparisons instead require an explicit raw-count prediction and measurement with `intensity_unit="counts"` and `normalization="raw_counts"`.
+
+Use `plan_forward(model, request; policy=..., routes=...)` when a typed request should be matched to a certified numerical solver under an explicit approximation policy. Unlike ordinary constructor validity, solver compatibility depends on the physical representation, method context, requested response and approximation authorization. Unsupported combinations must be rejected before the numerical result is interpreted scientifically.
+
+`validate_forward_equivalence(left, right; compare=(:spectrum, :intrinsic, :probe, :instrument))` reports equality at selected stages. For harmonic phonon or matrix-valued electronic solvers without a complete `energies` spectrum, request the appropriate observable stages rather than treating a missing eigenspectrum as evidence of equivalence. F7 regression tests compare full magnetic, phonon and electronic pipelines with independent calculations where supported.

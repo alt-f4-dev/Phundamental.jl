@@ -98,7 +98,7 @@ The API intentionally rejects ambiguous raw vectors in places where Cartesian ve
 
 ## Canonical Hamiltonian structures
 
-Batch 8 introduces a coefficient-independent structural intermediate representation between symbolic Hamiltonians and later structural inference. `structure(model)` canonicalizes the Hamiltonian in its declared operator algebra, removes numerical coupling magnitudes from structural identity, records local supports and operator topology, and returns a `ModelStructure`.
+The canonical structural layer provides a coefficient-independent intermediate representation between symbolic Hamiltonians and later structural inference. `structure(model)` canonicalizes the Hamiltonian in its declared operator algebra, removes numerical coupling magnitudes from structural identity, records local supports and operator topology, and returns a `ModelStructure`.
 
 The structural signature has the conceptual form
 
@@ -110,7 +110,7 @@ where the physical representation context excludes numerical truncation and user
 
 Exact representation transformations do not collapse structural identity. A spin Hamiltonian and its exact Jordan--Wigner fermion image generally have different `StructuralSignature`s because locality and operator topology have changed. The transformation layer exposes `structurally_related(source, target, transformation)` for this distinct notion of exact cross-representation relation.
 
-Batch 8 also uses the algebraic canonicalizer to certify real linear-span membership in a `HamiltonianSpace`. This closes the Batch 7 case in which an algebraically equivalent expression could remain structurally unresolved even though canonicalization proves its basis coordinates.
+The structural layer also uses the algebraic canonicalizer to certify real linear-span membership in a `HamiltonianSpace`. This resolves cases in which an algebraically equivalent expression could remain structurally unresolved even though canonicalization proves its basis coordinates.
 
 ## Admissibility and generative model spaces
 
@@ -122,27 +122,27 @@ Every candidate is checked against the declared operator algebra, including prim
 
 `HamiltonianBasis` stores the operator basis associated with a model class, and `HamiltonianSpace <: AbstractModelSpace` ties that basis to its `GenerativeSpecification`. Direct `HamiltonianSpace` construction remains declarative so externally generated bases can be inspected even when they are invalid or incompletely certified; `admissibility_report(space)` audits every basis direction. By contrast, `generate_hamiltonian_space` now requires every generated basis direction to have a complete passing admissibility report before it returns the space. This audit does not yet claim Hermiticity, linear independence, symmetry completeness, or universal-generator completeness beyond the evidence recorded by the generator.
 
-`admissibility_report(space, candidate)` also checks membership in the real span represented by the current `HamiltonianBasis`. Batch 8 supplies canonical algebraic linear coordinates, so algebraically equivalent numeric expressions can now be certified against the recorded basis span. Expressions whose coefficients cannot be reduced to numeric linear coordinates remain explicitly unresolved rather than being guessed.
+`admissibility_report(space, candidate)` also checks membership in the real span represented by the current `HamiltonianBasis`. Canonicalization supplies algebraic linear coordinates, so algebraically equivalent numeric expressions can now be certified against the recorded basis span. Expressions whose coefficients cannot be reduced to numeric linear coordinates remain explicitly unresolved rather than being guessed.
 
 `hamiltonian_from_coefficients` converts a real coefficient vector into a symbolic Hamiltonian in the chosen basis. Because a user-defined admissibility predicate need not be closed under linear combination, auditing every basis direction does not imply that every coefficient combination is valid. `instantiate_model` therefore validates the resulting `ManyBodyModel` against the attached model space, and `with_parameters(...; rebuild=true)` revalidates the rebuilt Hamiltonian. `admissibility_report(model)` uses the model's attached `HamiltonianSpace` or `GenerativeSpecification`; a model without either cannot make a package-level physical-admissibility claim. This layer is therefore the authoritative Julia boundary for the currently declared and evaluable admissibility constraints, not a replacement for the later Hermiticity, symmetry, linear-independence, and completeness certificate, and not a statement that a numerical backend can solve the model.
 
 ## Constraint-bearing parameter schemas
 
-Batch 9 promotes the existing `ParameterSpace` into the explicit real-coupling schema associated with a Hamiltonian family. `ParameterSpec` still describes one scalar coefficient, including bounds, units, a reference value, prior metadata, and the legacy `fixed` flag. The key invariant is
+The existing `ParameterSpace` serves as the explicit real-coupling schema associated with a Hamiltonian family. `ParameterSpec` still describes one scalar coefficient, including bounds, units, a reference value, prior metadata, and the legacy `fixed` flag. The key invariant is
 
 $$\mathfrak G+\Theta(\mathfrak G)+\boldsymbol\theta\longrightarrow H_{\mathfrak G}(\boldsymbol\theta),$$
 
-where the Batch 8 structure $\mathfrak G$ defines the Hamiltonian topology, `ParameterSpace` represents the admissible coupling domain $\Theta(\mathfrak G)$, and `ParameterPoint` represents one concrete real coefficient vector $\boldsymbol\theta$. Parameter constraints do not decide whether the Hamiltonian structure is physically admissible and do not select a numerical solver.
+where the canonical structure $\mathfrak G$ defines the Hamiltonian topology, `ParameterSpace` represents the admissible coupling domain $\Theta(\mathfrak G)$, and `ParameterPoint` represents one concrete real coefficient vector $\boldsymbol\theta$. Parameter constraints do not decide whether the Hamiltonian structure is physically admissible and do not select a numerical solver.
 
 `FixedParameterConstraint`, `EqualParameterConstraint`, and `LinearParameterConstraint` express exact affine equality restrictions on named couplings. A fixed `ParameterSpec` is enforced as an implicit fixed-value constraint, and a degenerate bound `lower == upper` has the same effect. Ordinary lower/upper bounds remain inequalities. `parameter_constraint_report` evaluates bounds and equality constraints without constructing a model, while `valid_parameter_point` provides the Boolean form. Invalid `ParameterPoint` construction raises an error instead of creating an out-of-schema coefficient vector.
 
-Every `ParameterSpace` attached to a `HamiltonianSpace` also carries deterministic `ParameterBinding` objects. A binding associates a parameter name and basis index with the Batch 8 `StructuralSignature` of that basis direction. The binding therefore identifies what a coupling multiplies without folding the coupling value into structural identity. A basis direction may itself contain several canonical operator terms, so the binding targets the complete basis-direction structure rather than assuming one scalar parameter corresponds to one graph edge.
+Every `ParameterSpace` attached to a `HamiltonianSpace` also carries deterministic `ParameterBinding` objects. A binding associates a parameter name and basis index with the canonical `StructuralSignature` of that basis direction. The binding therefore identifies what a coupling multiplies without folding the coupling value into structural identity. A basis direction may itself contain several canonical operator terms, so the binding targets the complete basis-direction structure rather than assuming one scalar parameter corresponds to one graph edge.
 
 The affine equality constraints can be exported as
 
 $$A\boldsymbol\theta=\mathbf b$$
 
-through `parameter_constraint_matrix`. `parameter_dof` reports $N_\theta-\mathrm{rank}(A)$; inequality bounds do not reduce this dimension unless they collapse to an equality. `free_parameter_indices` retains its pre-Batch-9 meaning of parameters not explicitly marked `fixed`, so constraint-aware inverse code should use `parameter_constraint_matrix` or `parameter_dof` when shared or linear relations matter.
+through `parameter_constraint_matrix`. `parameter_dof` reports $N_\theta-\mathrm{rank}(A)$; inequality bounds do not reduce this dimension unless they collapse to an equality. `free_parameter_indices` retains its established meaning of parameters not explicitly marked `fixed`, so constraint-aware inverse code should use `parameter_constraint_matrix` or `parameter_dof` when shared or linear relations matter.
 
 Exact representation transformations retain the parameter names, values, and equality constraints while `rebind_parameters` regenerates each `ParameterBinding` against the transformed Hamiltonian basis. Consequently the same physical coupling schema can survive an exact change of representation without incorrectly claiming that the source and target operator structures are identical.
 
@@ -174,179 +174,4 @@ Higher layers should inspect the representation rather than infer requirements a
 - [Models](models.md) supplies concrete physical model specifications that build `ManyBodyModel` instances.
 - [Solvers](solvers.md) realizes a representation numerically without changing its physical identity.
 
-## API reference
-
-### State spaces and exact restrictions
-
-```@docs
-AbstractStateSpace
-AbstractHilbertSpace
-AbstractFockSpace
-SpinHilbertSpace
-FermionFockSpace
-BosonFockSpace
-CoordinateHilbertSpace
-CompositeStateSpace
-BiorthogonalSpace
-PhysicalSubspace
-NumericalTruncation
-spacedimension
-FactorConstraint
-FactorTruncation
-```
-
-### Operator algebras
-
-```@docs
-AbstractOperatorAlgebra
-SpinAlgebra
-BosonAlgebra
-FermionAlgebra
-MajoranaAlgebra
-CoordinateMomentumAlgebra
-CompositeAlgebra
-algebra_kind
-```
-
-### Symbolic expressions
-
-```@docs
-IdentityOperator
-NumberOperator
-OperatorSum
-OperatorProduct
-ScaledOperator
-FactorOperator
-operator_degree
-support_size
-body_order
-```
-
-### Representations
-
-```@docs
-GaugeStructure
-Representation
-isconstrained
-istruncated
-ambientdimension
-representationdimension
-physicalspace
-```
-
-### Reciprocal-space decomposition
-
-```@docs
-ReciprocalDecomposition
-decompose_reciprocal_vector
-```
-
-### Canonical Hamiltonian structures
-
-```@docs
-AbstractModelStructure
-StructuralSupport
-StructuralTerm
-InteractionEdge
-InteractionGraph
-StructuralSignature
-ModelStructure
-representation_signature
-canonical_model_expression
-structure
-canonicalize_structure
-structural_signature
-interaction_graph
-structurally_equivalent
-structural_span_membership
-```
-
-### Generative model spaces
-
-```@docs
-AbstractModelSpace
-AdmissibilityCheck
-AdmissibilityReport
-PredicateAdmissibility
-admissibility_check
-admissibility_report
-admissibility_reasons
-GenerativeSpecification
-HamiltonianBasis
-HamiltonianSpace
-generated_basis
-hamiltonian_from_coefficients
-```
-
-### Parameters and models
-
-```@docs
-ParameterSpec
-AbstractParameterConstraint
-FixedParameterConstraint
-EqualParameterConstraint
-LinearParameterConstraint
-ParameterConstraintCheck
-ParameterConstraintReport
-ParameterBinding
-ParameterSpace
-ParameterPoint
-parameter_constraints
-parameter_constraint_check
-parameter_constraint_report
-parameter_constraint_reasons
-valid_parameter_point
-parameter_constraint_matrix
-parameter_dof
-parameter_bindings
-parameter_binding
-with_parameters
-ManyBodyModel
-with_provenance
-remap_model
-with_truncation
-instantiate_model
-```
-
-## Additional exported utilities
-
-The remaining lightweight exported accessors and constructors are intentionally documented here by role rather than repeated as individual prose sections: `physicaldimension`, `factorconstraint`, `factortruncation`, the primitive operator types and constructor aliases, `atfactor`, `isprimitive`, `children`, the public basis constructors, wave-vector constructors and `wavevector_coordinates`, `admissible`, `model_space_dimension`, `generate_hamiltonian_space`, `parameter_space`, `parameter_point`, `parameter_names`, `parameter_bounds`, `parameter_units`, `parameter_vector`, `free_parameter_indices`, and `rebind_parameters`.
-
-## Typed generation contexts and canonical coordinates
-
-The foundation layer provides `GeometryContext`, `ComponentIndexLayout`, and `PhysicalModelContext` as typed carriers for validated source geometry, site-to-component ordering, and provenance. Generated spinful-fermion and Cartesian-vector families retain physical site positions independently of orbital, spin, or vector-component multiplicity. `component_index` maps physical sites and components into operator indices, while `component_site` and `component_coordinates` invert the map. Existing code that reads `model.parameters[:positions]` continues to work with physical site positions; certified Cartesian phonon models also carry atomic masses per operator coordinate. `structural_span_coordinates` reports real coefficients and residuals in the canonical operator basis and is shared by structural localization.
-
-```@docs
-ComponentIndexLayout
-GeometryContext
-PhysicalModelContext
-ObservableContext
-model_context
-observable_context
-geometry_context
-structural_span_coordinates
-```
-
-## Experimental interchange and statistical comparison (Milestone C)
-
-The package-level `ExperimentalGrid`, `PortablePrediction`, and `ExperimentalDataset` describe explicit measured and calculated numerical quantities without modifying the underlying `ForwardResult` or observable result types. `export_result` and `import_result` exchange a versioned, language-neutral dictionary in Julia column-major array order. `compare_measurement` uses only jointly valid bins and explicit experimental uncertainties or covariance. See [Experimental Data and Instrument Resolution](../workflows/experimental-data-resolution.md).
-
-```@meta
-CurrentModule = Phundamental
-```
-
-```@docs
-ExperimentalGrid
-PortablePrediction
-ExperimentalDataset
-MeasurementComparison
-portable_prediction
-experimental_dataset
-export_result
-import_result
-compare_measurement
-```
-
-```@meta
-CurrentModule = Phundamental.PhundamentalCore
-```
+See the [state-space and operator reference](core-reference-operators.md) and [model-structure and interchange reference](core-reference-models.md) for documented constructors, types, and accessors.

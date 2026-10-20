@@ -98,3 +98,37 @@ _solver_request_support(::LanczosSolver, ::ManyBodyModel, ::StaticStructureFacto
     (false, ("static equal-time structure factors require a complete eigensystem; Lanczos is partial",), true)
 _solver_request_support(::AutoSolver, ::ManyBodyModel, ::StaticStructureFactorRequest) =
     (false, ("automatic solver eigenstate completeness is not certified for static equal-time structure factors",), true)
+
+# Static magnetic response requires complete Hermitian eigenvectors; partial-sector and
+# mode-only solvers are rejected before numerical execution.
+function _request_family_support(::Union{MagneticSusceptibilityRequest,MagnetizationCurveRequest}, family::Symbol)
+    ok = family === :eigensystem
+    return ok, ok ? () : ("static magnetic response requires a full Hermitian eigensystem",), true
+end
+
+function _solver_request_support(::ExactDiagonalization, ::ManyBodyModel,
+                                 ::Union{MagneticSusceptibilityRequest,MagnetizationCurveRequest})
+    return true, (), true
+end
+
+function _solver_request_support(::LanczosSolver, ::ManyBodyModel,
+                                 ::Union{MagneticSusceptibilityRequest,MagnetizationCurveRequest})
+    return false, ("static magnetic response currently requires ExactDiagonalization for a complete eigenbasis",), true
+end
+
+function _solver_request_support(::OptimizedLanczos, ::ManyBodyModel,
+                                 ::Union{MagneticSusceptibilityRequest,MagnetizationCurveRequest})
+    return false, ("static magnetic response currently requires ExactDiagonalization for a complete eigenbasis",), true
+end
+
+function _solver_request_support(::AutoSolver, ::ManyBodyModel,
+                                 ::Union{MagneticSusceptibilityRequest,MagnetizationCurveRequest})
+    return false, ("static magnetic response currently requires ExactDiagonalization for a complete eigenbasis",), true
+end
+
+function _request_model_support(request::Union{MagneticSusceptibilityRequest,MagnetizationCurveRequest}, model::ManyBodyModel)
+    if request.moment isa Symbol && !haskey(model.observables, request.moment)
+        return false, ("magnetic moment is not registered in the physical model",), true
+    end
+    return true, ("moment Hermiticity and eigensystem completeness are verified at execution",), false
+end

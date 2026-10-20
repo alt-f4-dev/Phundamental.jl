@@ -4,7 +4,7 @@ CurrentModule = Phundamental
 
 # Universal Hamiltonian Generation
 
-Batch 10 connects material geometry and crystallographic symmetry to the physical model-space, structural, and parameter layers established in Batches 7--9. The generator does not replace those layers; it coordinates them in a single material-aware construction.
+Material-aware Hamiltonian generation connects material geometry and crystallographic symmetry to the existing physical model-space, structural, and parameter layers. The generator does not replace those layers; it coordinates them in a single material-aware construction.
 
 The resulting pipeline is
 
@@ -26,7 +26,7 @@ The material-only route acts on primitive-cell-indexed degrees of freedom. With 
 
 The standard symmetry action has an explicit indexing contract: one symbolic spin, boson, fermion, or Majorana index must correspond to one crystallographic site. Multi-orbital, spinful-fermion, vector-component, or other richer internal indexing conventions must provide a custom `symmetry_action` and explicit `local_spaces`; the generator does not guess how crystallographic operations act on hidden internal indices. A Majorana site action exists, but automatic site-local Hilbert-space construction is intentionally not inferred from one Majorana generator per site, so Majorana material specifications must also supply `local_spaces` explicitly.
 
-If `max_range` is declared while the standard site indexing is valid and no custom `range_evaluator` is supplied, Batch 10 constructs a geometry-aware evaluator from the crystallographic lattice. The range of one canonical operator term is the maximum minimum-image Cartesian separation between its distinct site supports. This supplies the explicit physical geometry required by the Batch 7 range-admissibility contract rather than interpreting symbolic site numbers as distances.
+If `max_range` is declared while the standard site indexing is valid and no custom `range_evaluator` is supplied, `generate_hamiltonian_family` constructs a geometry-aware evaluator from the crystallographic lattice. The range of one canonical operator term is the maximum minimum-image Cartesian separation between its distinct site supports. This supplies the explicit physical geometry required by the declared physical-range admissibility constraint rather than interpreting symbolic site numbers as distances.
 
 ## Generating a complete Hamiltonian family object
 
@@ -47,11 +47,11 @@ material = Material("two-site magnet", crystal;
 family = generate_hamiltonian_family(material, SpinAlgebra(2); max_body_order=2, max_range=0.6)
 ```
 
-For controlled candidate spaces, supply `candidates` explicitly. `basis_labels` may name the independent invariant basis directions and therefore the corresponding Batch 9 parameters; its length must match the final invariant-space dimension. Otherwise the existing `enumerate_operator_candidates` machinery determines the finite candidate set from the algebra and body-order/operator-degree controls. Symmetry projection, Hermitian decomposition, linear-independence filtering, and physical admissibility remain owned by the crystallography and model-space layers. Automatic generation is complete only relative to this finite candidate space and never claims enumeration of arbitrary interaction order or range.
+For controlled candidate spaces, supply `candidates` explicitly. `basis_labels` may name the independent invariant basis directions and therefore the corresponding `ParameterSpace` coefficients; its length must match the final invariant-space dimension. Otherwise the existing `enumerate_operator_candidates` machinery determines the finite candidate set from the algebra and body-order/operator-degree controls. Symmetry projection, Hermitian decomposition, linear-independence filtering, and physical admissibility remain owned by the crystallography and model-space layers. Automatic generation is complete only relative to this finite candidate space and never claims enumeration of arbitrary interaction order or range.
 
 ## Parameter schemas and model instantiation
 
-Batch 10 does not invent a second coupling schema. The generated basis is passed directly to the Batch 9 `ParameterSpace` constructor. Bounds, units, fixed flags, priors, and explicit parameter equality constraints may be supplied through the `parameter_*` keywords of `generate_hamiltonian_family`.
+The generator does not introduce a second coupling schema. The generated basis is passed directly to the existing `ParameterSpace` constructor. Bounds, units, fixed flags, priors, and explicit parameter equality constraints may be supplied through the `parameter_*` keywords of `generate_hamiltonian_family`.
 
 A generated family can be instantiated with an explicit representation:
 
@@ -60,13 +60,13 @@ representation = Representation(:spin, SpinHilbertSpace([1//2, 1//2]), SpinAlgeb
 model = instantiate_model(family, representation)
 ```
 
-The ordinary Foundation validation still applies. The representation must agree with the generated specification algebra, the parameter point must satisfy the Batch 9 schema, and the resulting Hamiltonian must remain inside the generated physical model space. The convenience method adds generation provenance but does not bypass these checks.
+The ordinary Foundation validation still applies. The representation must agree with the generated specification algebra, the parameter point must satisfy the `ParameterSpace` schema, and the resulting Hamiltonian must remain inside the generated physical model space. The convenience method adds generation provenance but does not bypass these checks.
 
 ## Architectural boundary
 
-Crystallography is upstream of structural identity. `ModelStructure` does not reconstruct a material or space group from a Hamiltonian expression. Instead, material/crystallographic information restricts the invariant Hamiltonian basis before the Batch 8 structure is extracted.
+Crystallography is upstream of structural identity. `ModelStructure` does not reconstruct a material or space group from a Hamiltonian expression. Instead, material/crystallographic information restricts the invariant Hamiltonian basis before the canonical `ModelStructure` is extracted.
 
-Likewise, Batch 10 performs no solver selection, forward execution, structural search, parameter optimization, posterior inference, or machine learning. Batch 11 will operate on crystallography-constrained structural neighborhoods, and Batch 12 will validate complete material-to-forward closure.
+Hamiltonian-family generation performs no solver selection, forward execution, structural search, parameter optimization, posterior inference, or machine learning. Structural search operates on crystallography-constrained neighborhoods, while structural forward closure provides the material-to-forward validation boundary.
 
 ## API reference
 
@@ -77,9 +77,9 @@ material_generative_specification
 generate_hamiltonian_family
 ```
 
-## Batch 11: Symmetry-complete structural search
+## Symmetry-complete structural search
 
-Batch 11 operates downstream of the Batch 10 crystallographic invariant generator. A `StructuralFamily` partitions the **complete invariant basis directions**, rather than the monomials inside their symbolic expansions, into nonoverlapping `StructuralUnit`s. Each unit may contain one direction (the default) or an explicitly grouped set of whole directions. Structural deletion never removes only one symmetry-related monomial from an invariant direction.
+Structural search operates downstream of the crystallographic invariant generator. A `StructuralFamily` partitions the **complete invariant basis directions**, rather than the monomials inside their symbolic expansions, into nonoverlapping `StructuralUnit`s. Each unit may contain one direction (the default) or an explicitly grouped set of whole directions. Structural deletion never removes only one symmetry-related monomial from an invariant direction.
 
 ```julia
 family = structural_family(result)
@@ -91,11 +91,11 @@ parent_coefficients = embed_parameters(selection, zeros(length(selection.basis_i
 
 The structural search stays finite and explicit. `enumerate_structures` applies required/forbidden unit and size constraints, checks the exact combinatorial selection count, and raises an error if `max_structures` would be exceeded. `model_space_hierarchy` constructs the finite within-family Hasse graph whose edges add exactly one complete structural unit. The graph changes no crystallographic, range, or body-order assumption in the parent `GenerativeSpecification`.
 
-Structural identity uses coefficient-ratio-aware `InvariantDirectionSignature` coordinates. Two directions related by an overall nonzero **real** multiplier have the same direction signature, while different relative coefficients do not. `StructuralFamilySignature` identifies the physical parent and structural grouping; `StructuralSelectionSignature` is independent of unit-selector order. Parent coefficient-vector order remains authoritative for parameter bindings. These structural signatures are Julia-internal identity values; stable cross-language serialized identifiers remain a separate Batch 12 responsibility.
+Structural identity uses coefficient-ratio-aware `InvariantDirectionSignature` coordinates. Two directions related by an overall nonzero **real** multiplier have the same direction signature, while different relative coefficients do not. `StructuralFamilySignature` identifies the physical parent and structural grouping; `StructuralSelectionSignature` is independent of unit-selector order. Parent coefficient-vector order remains authoritative for parameter bindings. These structural signatures are Julia-internal identity values; stable cross-language serialized identifiers are provided by the separate structural-interchange interface.
 
 Structural absence is explicit, rather than inferred from a small numerical coefficient. An omitted direction has **exactly zero** parent coefficient. `embed_parameters` validates the complete parent schema after zero insertion; strict `project_parameters` rejects discarded nonzero coefficients. `parameter_subspace` inherits the original parameter bounds, names, units, fixed flags, priors, and supported equality constraints. A parent equality between one retained and one omitted parameter becomes a fixed-zero child constraint. Unknown custom constraint types are never silently dropped.
 
-A selected structural Hamiltonian subspace remains distinct from an executable numerical representation. Solver compatibility and selected-model forward instantiation are addressed separately in Batch 12.
+A selected structural Hamiltonian subspace remains distinct from an executable numerical representation. Solver compatibility and selected-model forward instantiation are handled separately through structural forward closure.
 
 ### Structural-search API
 

@@ -1,6 +1,6 @@
 # Versioned, explicit scientific numerical exchange for model inference and measurement comparisons.
 
-using LinearAlgebra: Hermitian, cholesky, eigvals
+using LinearAlgebra: Hermitian, cholesky, eigvals, diag
 
 const EXPERIMENTAL_DATA_SCHEMA_VERSION = 1
 
@@ -55,7 +55,14 @@ struct ExperimentalDataset{N}
     intensity_unit::String
     normalization::String
     provenance::Dict{String,Any}
+    likelihood::Symbol
 end
+
+# Preserve the original positional measurement constructor for callers with pre-F5 datasets.
+ExperimentalDataset(grid::ExperimentalGrid, intensity::Array{Float64,N}, uncertainty::Union{Nothing,Array{Float64,N}},
+                    covariance::Union{Nothing,Matrix{Float64}}, valid::BitArray{N}, intensity_unit::String,
+                    normalization::String, provenance::Dict{String,Any}) where {N} =
+    ExperimentalDataset(grid, intensity, uncertainty, covariance, valid, intensity_unit, normalization, provenance, :gaussian)
 
 """Measurement comparison diagnostics using only valid bins and either diagonal uncertainties or a full covariance."""
 struct MeasurementComparison
@@ -63,7 +70,13 @@ struct MeasurementComparison
     nvalid::Int
     residual::Vector{Float64}
     whitened_residual::Vector{Float64}
+    likelihood::Symbol
+    deviance::Float64
+    log_likelihood::Float64
 end
+
+MeasurementComparison(chi_squared::Real, nvalid::Int, residual::Vector{Float64}, whitened::Vector{Float64}) =
+    MeasurementComparison(Float64(chi_squared), nvalid, residual, whitened, :gaussian, Float64(chi_squared), NaN)
 
 function _portable_metadata(value)
     if value isa Symbol || value isa AbstractString
@@ -254,7 +267,7 @@ function portable_prediction(result; stage::Symbol=:auto, momentum_coordinates=n
 end
 
 """Construct a measured dataset with optional per-bin uncertainty, covariance, and explicit detector-validity mask."""
-function experimental_dataset(grid::ExperimentalGrid, intensities; uncertainty=nothing, covariance=nothing,
+function experimental_dataset(grid::ExperimentalGrid, intensities; uncertainty=nothing, covariance=nothing, likelihood::Symbol=:gaussian,
                               valid=trues(size(intensities)), intensity_unit::AbstractString, normalization::AbstractString,
                               provenance=Dict{String,Any}())
     values = Float64.(Array(intensities))
@@ -267,6 +280,15 @@ function experimental_dataset(grid::ExperimentalGrid, intensities; uncertainty=n
     mask = BitArray(valid)
     any(mask) || throw(ArgumentError("experimental dataset must contain at least one valid measurement bin"))
     all(isfinite(values[i]) for i in eachindex(values) if mask[i]) || throw(ArgumentError("valid measurement intensities must be finite"))
+    likelihood in (:gaussian, :poisson) || throw(ArgumentError("likelihood must be :gaussian or :poisson"))
+    if likelihood === :poisson
+        intensity_unit == "counts" && normalization == "raw_counts" ||
+            throw(ArgumentError("Poisson likelihood requires intensity_unit=counts and normalization=raw_counts"))
+        isnothing(uncertainty) && isnothing(covariance) ||
+            throw(ArgumentError("raw-count Poisson measurements must not supply Gaussian uncertainties or covariance"))
+        all(v -> v >= 0 && v == trunc(v), values[mask]) ||
+            throw(ArgumentError("Poisson observations must be nonnegative integer raw counts"))
+    end
     err = if isnothing(uncertainty)
         nothing
     else
@@ -287,18 +309,22 @@ function experimental_dataset(grid::ExperimentalGrid, intensities; uncertainty=n
         cholesky(Hermitian(C[valid_idx, valid_idx]); check=true)
         C
     end
-    isnothing(err) && isnothing(cov) && throw(ArgumentError("measurements require standard deviations or covariance for statistical comparison"))
-    return ExperimentalDataset(grid, values, err, cov, mask, String(intensity_unit), String(normalization), _portable_metadata(provenance))
+    likelihood === :gaussian && isnothing(err) && isnothing(cov) &&
+        throw(ArgumentError("Gaussian measurements require standard deviations or covariance for statistical comparison"))
+    return ExperimentalDataset(grid, values, err, cov, mask, String(intensity_unit), String(normalization), _portable_metadata(provenance), likelihood)
 end
 
 function _portable_record(kind::String, grid, values, mask, intensity_unit, normalization, provenance; response=nothing, stage=nothing,
-                          uncertainty=nothing, covariance=nothing)
+                          uncertainty=nothing, covariance=nothing, likelihood=:gaussian)
     record = Dict{String,Any}("schema" => "phundamental.experimental", "version" => EXPERIMENTAL_DATA_SCHEMA_VERSION,
                               "kind" => kind, "grid" => _portable_grid(grid), "intensity" => _portable_values(values; mask=mask),
                               "valid" => collect(vec(mask)), "intensity_unit" => intensity_unit,
                               "normalization" => normalization, "provenance" => _portable_metadata(provenance))
     record["uncertainty"] = isnothing(uncertainty) ? nothing : _portable_values(uncertainty; mask=mask)
     record["covariance"] = isnothing(covariance) ? nothing : _portable_values(covariance)
+    if kind == "measurement"
+        record["likelihood"] = string(likelihood)
+    end
     if kind == "prediction"
         record["response"] = _portable_metadata(response)
         record["stage"] = string(stage)
@@ -312,7 +338,8 @@ export_result(result::PortablePrediction) = _portable_record("prediction", resul
     uncertainty=result.uncertainty, covariance=result.covariance)
 
 export_result(dataset::ExperimentalDataset) = _portable_record("measurement", dataset.grid, dataset.intensity, dataset.valid,
-    dataset.intensity_unit, dataset.normalization, dataset.provenance; uncertainty=dataset.uncertainty, covariance=dataset.covariance)
+    dataset.intensity_unit, dataset.normalization, dataset.provenance; uncertainty=dataset.uncertainty, covariance=dataset.covariance,
+    likelihood=dataset.likelihood)
 
 export_result(result; kwargs...) = export_result(portable_prediction(result; kwargs...))
 
@@ -337,6 +364,7 @@ function import_result(record::AbstractDict)
     elseif record["kind"] == "measurement"
         any(v -> !isreal(v), values[mask]) && throw(ArgumentError("measurements must be real"))
         return experimental_dataset(grid, real.(values); valid=mask, uncertainty=uncertainty, covariance=covariance,
+                                    likelihood=Symbol(get(record, "likelihood", "gaussian")),
                                     intensity_unit=record["intensity_unit"], normalization=record["normalization"],
                                     provenance=record["provenance"])
     end
@@ -349,26 +377,59 @@ function _same_experimental_grid(a::ExperimentalGrid, b::ExperimentalGrid)
            a.spectral_kind == b.spectral_kind && a.positions == b.positions && a.spectral == b.spectral
 end
 
-"""Calculate chi-square on the intersection of measurement coverage and prediction coverage, with no fitted scaling or interpolation."""
+"""Compare consistent predictions and measurements using Gaussian chi-square or raw-count Poisson deviance.
+
+Poisson `deviance` is twice the log likelihood ratio relative to the saturated model (Cash deviance).
+Its `log_likelihood` omits the data-only log-factorial normalization; `chi_squared` is `NaN` in Poisson mode.
+"""
 function compare_measurement(prediction::PortablePrediction, measurement::ExperimentalDataset; imaginary_tolerance::Real=1e-10)
     _same_experimental_grid(prediction.grid, measurement.grid) || throw(ArgumentError("prediction and measurement grids, units, or frames differ"))
     prediction.intensity_unit == measurement.intensity_unit || throw(ArgumentError("prediction and measurement intensity units differ"))
     prediction.normalization == measurement.normalization || throw(ArgumentError("prediction and measurement normalizations differ"))
     size(prediction.intensity) == size(measurement.intensity) || throw(DimensionMismatch("prediction and measurement shapes differ"))
+    isfinite(imaginary_tolerance) && imaginary_tolerance >= 0 || throw(ArgumentError("imaginary_tolerance must be finite and nonnegative"))
     mask = prediction.coverage .& measurement.valid
     idx = findall(vec(mask))
     isempty(idx) && throw(ArgumentError("no simultaneously valid predicted and measured bins"))
     predicted = vec(prediction.intensity)[idx]
     maximum(abs, imag.(predicted)) <= imaginary_tolerance ||
         throw(ArgumentError("comparison requires real predictions; complex response tensors must be contracted first"))
-    residual = Float64.(real.(predicted) .- vec(measurement.intensity)[idx])
-    if !isnothing(measurement.covariance)
-        C = measurement.covariance[idx, idx]
-        F = cholesky(Hermitian(C); check=true)
-        whitened = F.L \ residual
-    else
-        isnothing(measurement.uncertainty) && throw(ArgumentError("comparison requires covariance or standard deviation"))
-        whitened = residual ./ vec(measurement.uncertainty)[idx]
+    expected = Float64.(real.(predicted))
+    observed = vec(measurement.intensity)[idx]
+    residual = expected .- observed
+    if measurement.likelihood === :poisson
+        all(v -> isfinite(v) && v >= 0, expected) || throw(ArgumentError("Poisson expected counts must be finite and nonnegative"))
+        deviance = 0.0
+        log_likelihood = 0.0
+        standardized = Vector{Float64}(undef, length(idx))
+        for i in eachindex(idx)
+            mu = expected[i]
+            n = observed[i]
+            term = if n == 0
+                mu
+            elseif mu == 0
+                Inf
+            else
+                mu - n + n * log(n / mu)
+            end
+            term = max(term, 0.0)
+            deviance += 2 * term
+            log_likelihood += mu == 0 ? (n == 0 ? 0.0 : -Inf) : n * log(mu) - mu
+            standardized[i] = sign(residual[i]) * sqrt(2 * term)
+        end
+        return MeasurementComparison(NaN, length(idx), residual, standardized, :poisson, deviance, log_likelihood)
     end
-    return MeasurementComparison(sum(abs2, whitened), length(idx), residual, collect(whitened))
+    if !isnothing(measurement.covariance)
+        F = cholesky(Hermitian(measurement.covariance[idx, idx]); check=true)
+        whitened = F.L \ residual
+        logdet = 2 * sum(log, diag(F.L))
+    else
+        isnothing(measurement.uncertainty) && throw(ArgumentError("Gaussian comparison requires covariance or standard deviation"))
+        sigma = vec(measurement.uncertainty)[idx]
+        whitened = residual ./ sigma
+        logdet = 2 * sum(log, sigma)
+    end
+    chi2 = sum(abs2, whitened)
+    ll = -0.5 * (chi2 + logdet + length(idx) * log(2π))
+    return MeasurementComparison(chi2, length(idx), residual, collect(whitened), :gaussian, chi2, ll)
 end

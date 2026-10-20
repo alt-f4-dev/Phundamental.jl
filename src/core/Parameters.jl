@@ -172,7 +172,7 @@ end
 """
     ParameterSpace(specifications; hamiltonian_space=nothing, constraints=(), metadata=Dict())
 
-Ordered real parameter schema associated with an optional `HamiltonianSpace`. Explicit constraints are stored independently of ordinary bounds. When a Hamiltonian space is attached, every parameter is deterministically bound by index to one basis direction and its Batch 8 structural signature.
+Ordered real parameter schema associated with an optional `HamiltonianSpace`. Explicit constraints are stored independently of ordinary bounds. When a Hamiltonian space is attached, every parameter is deterministically bound by index to one basis direction and its canonical structural signature.
 """
 struct ParameterSpace{S<:AbstractVector{<:ParameterSpec},H,C,B,M}
     specifications::S
@@ -381,7 +381,7 @@ _constraint_linear_row(::AbstractParameterConstraint, ::ParameterSpace) = nothin
 """
     parameter_constraint_matrix(space)
 
-Return `(A, b)` for the exact affine equality constraints `A * theta = b` implied by fixed parameters, degenerate bounds, and explicit Batch 9 parameter constraints. Ordinary inequality bounds are not included.
+Return `(A, b)` for the exact affine equality constraints `A * theta = b` implied by fixed parameters, degenerate bounds, and explicit parameter-schema constraints. Ordinary inequality bounds are not included.
 """
 function parameter_constraint_matrix(space::ParameterSpace)
     constraints = parameter_constraints(space)
@@ -408,7 +408,7 @@ function parameter_dof(space::ParameterSpace; tolerance::Real=1e-10)
     return length(space) - rank_A
 end
 
-"""A concrete point theta in a `ParameterSpace`. Construction validates the complete Batch 9 schema."""
+"""A concrete point theta in a `ParameterSpace`. Construction validates the complete parameter schema."""
 struct ParameterPoint{S<:ParameterSpace,T<:Real}
     space::S
     values::Vector{T}

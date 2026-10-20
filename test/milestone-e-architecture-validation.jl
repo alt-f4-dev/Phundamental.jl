@@ -65,4 +65,24 @@ MSE.Solvers.solve(::MilestoneESolver, model::MSE.ManyBodyModel) = MSE.Solvers.so
         @test !MSE.solver_compatibility(MSE.DMFTSolver(), model).compatible
         @test any(issue -> issue.stage === :model, MSE.compatibility_issues(MSE.solver_compatibility(MSE.DMFTSolver(), model)))
     end
+
+    @testset "F7 constructor, dispatch and compatibility gate" begin
+        options = Dict{Symbol,Any}(:workflow => :f7)
+        keyword = MSE.ForwardProblem(model; solver=solver, observable=request, metadata=options)
+        legacy = MSE.ForwardProblem(model, nothing, solver, (), (;), request, nothing, nothing, options)
+        positional = MSE.ForwardProblem(model, nothing, solver, (), (;), nothing, request, nothing, nothing, options)
+        @test keyword.model === legacy.model === positional.model
+        @test keyword.solver === legacy.solver === positional.solver
+        @test MSE.forward(legacy).observable_result ≈ MSE.forward(keyword).observable_result
+        @test_throws ArgumentError MSE.ForwardProblem(model, nothing, solver, (), (;), nothing, nothing, :invalid_probe, nothing, options)
+        @test_throws ArgumentError MSE.ForwardProblem(model, nothing, solver, (), (;), nothing, nothing, nothing, :invalid_resolution, options)
+        @test_throws ArgumentError MSE.ForwardProblem(model, :invalid_map, solver, (), (;), nothing, request, nothing, nothing, options)
+        @test_throws ArgumentError MSE.ForwardProblem(model, nothing, solver, (), (;), :invalid_context, request, nothing, nothing, options)
+        @test_throws ArgumentError MSE.ForwardRoute(solver, :invalid_map, nothing, (), (;), :bad_route)
+        @test_throws ArgumentError MSE.ForwardRoute(solver, nothing, :invalid_context, (), (;), :bad_route)
+        @test_throws ArgumentError MSE.ForwardRoute(solver, nothing, nothing, [], (;), :bad_route)
+        @test MSE.ForwardRoute(solver, nothing, nothing, (), (;), :valid_route).label === :valid_route
+        @test !MSE.solver_compatibility(MSE.DMFTSolver(), model, request).compatible
+    end
+
 end

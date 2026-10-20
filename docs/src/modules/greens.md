@@ -281,3 +281,8 @@ Finite fermionic boxes are represented by an active-frequency mask for each boso
 The optimized backend projects the same-spin cube before constructing the opposite-spin cube, so both `N_tau^3` work arrays are not retained simultaneously. Fourier projection is expressed as matrix contractions rather than allocating one Kronecker-like phase vector for every fermionic frequency. `parallel=:threads` distributes the six ordered-time permutation regions across Julia tasks; equal-time boundary cells are accumulated under a small critical section while all strict-ordering cells remain disjoint. Users should benchmark Julia-thread and BLAS-thread settings on their local hardware to avoid oversubscription.
 
 Particle-hole bubbles are marked internally as diagonal in the two fermionic indices. Bethe-Salpeter and inverse-Bethe-Salpeter operations use an exact diagonal inversion path for these bubbles while retaining the dense conditioned inversion for non-diagonal susceptibilities and kernels. This changes computational cost, not the two-particle normalization or physical convention.
+
+
+## Orbital-resolved lattice responses
+
+The `MatrixMomentumResolvedGreenFunction` and `OrbitalLatticeBubble` types retain the full internal orbital indices, with finite-grid normalization recorded explicitly. The supported calculation is the matrix Dyson propagator and the bare orbital-pair bubble; there is no multiorbital impurity vertex solver in the current package.

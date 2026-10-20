@@ -124,7 +124,7 @@ struct PhysicalCoefficientMap
     residuals::Vector{Float64}
 end
 
-"""Complete high-level interaction-generation result with the authoritative Batch 10 and 11 objects retained."""
+"""Complete high-level interaction-generation result with the authoritative crystallographic generator and structural-search objects retained."""
 struct InteractionGenerationResult{G,F,I,P}
     generation::G
     family::F
@@ -155,7 +155,7 @@ end
     generate_interaction_family(material, algebra, interactions; symmetry_policy=:require, kwargs...)
     generate_interaction_family(material, cluster, algebra, interactions; symmetry_policy=:require, kwargs...)
 
-Expand physical operator sums, use the authoritative Batch 10 crystallographic generator, group full invariant directions into Batch 11 units, and certify the real coefficient map. `:require` rejects symmetry-breaking physical interactions; `:project` explicitly uses their Reynolds projections and records that change of model.
+Expand physical operator sums, use the authoritative crystallographic generator, group full invariant directions into symmetry-complete structural units, and certify the real coefficient map. `:require` rejects symmetry-breaking physical interactions; `:project` explicitly uses their Reynolds projections and records that change of model.
 """
 function _generate_interaction_family(source::Tuple, algebra::AbstractOperatorAlgebra, interactions::InteractionSpecification;
                                       symmetry_policy::Symbol=:require, tolerance::Real=1e-9, kwargs...)

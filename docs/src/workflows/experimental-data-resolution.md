@@ -35,3 +35,29 @@ The optimized `GaussianResolution(sigma)` retains its existing uniform-grid sten
 ## Assumptions and limitations
 
 All new numerical convolutions act on a shared source/observed grid; interpolation onto independently sampled experimental coordinates is not performed. They do not infer a spectrometer-specific resolution model from sample structure, do not construct instrument trajectories, do not propagate predicted Monte Carlo covariance, and do not assume that reciprocal-lattice coordinates are Cartesian momentum coordinates. Cross-correlated Q–energy kernels are integrated with explicit sampling weights; reliable values require convergence and calibration checks. `ForwardResult` remains unchanged and continues to store intrinsic, probe, and instrument stages independently.
+
+## F5: Raw-count Poisson likelihoods
+
+`experimental_dataset(grid, counts; likelihood=:poisson, intensity_unit="counts", normalization="raw_counts")` represents **nonnegative integer raw detector counts**, without independently supplied Gaussian standard deviations or covariance. Its matching `PortablePrediction` must contain **expected detector counts per bin**, including any physically modeled background and exposure; no model-to-count conversion is inferred. Background-subtracted intensities, detector-normalized rates, and Gaussian-propagated reductions must continue using the Gaussian measurement mode unless an externally justified count-generating model is supplied.
+
+`compare_measurement(prediction, measured)` keeps its original Gaussian result for `likelihood=:gaussian`. For `likelihood=:poisson`, the comparison returns the Cash/Poisson deviance $D=2\sum_i[\mu_i-n_i+n_i\log(n_i/\mu_i)]$, with the $n_i=0$ logarithmic term defined as zero. The comparison's `chi_squared` field is intentionally `NaN` in Poisson mode, while `deviance`, `likelihood`, and signed deviance residuals are populated. A predicted zero count in a bin with positive observed counts produces infinite deviance. `log_likelihood` omits the data-only $\log(n_i!)$ terms; it is appropriate for ranking predictions against an unchanged dataset, not for an absolute probability calculation. The schema-v1 measurement record adds the optional `likelihood` string; older records without that field are interpreted as Gaussian and must still satisfy Gaussian uncertainty requirements.
+
+```julia
+measured = experimental_dataset(prediction.grid, raw_counts; likelihood=:poisson, intensity_unit="counts", normalization="raw_counts")
+report = compare_measurement(prediction, measured)
+@show report.deviance report.nvalid
+```
+
+## F5: Source-resolved momentum–energy covariance and spatial search
+
+`SpatialGaussianQEResolution(covariances, q_coordinates, energy, q_weights; coordinate_frame, momentum_unit, energy_unit)` accepts one positive-definite covariance per **true** momentum–energy source bin, indexed `covariances[:, :, iq, ie]`. Each covariance has `[Q..., energy]` ordering; the four-dimensional array shape is `(dimension+1, dimension+1, nQ, nE)`. Alternatively, pass a callable `covariance_function(qrow, true_energy)` to construct those matrices once, with the same validation. Covariances, coordinates, and quadrature weights must use a consistent physical convention, and the recorded source-energy axis must match the source spectrum exactly.
+
+The convolution computes $I_i^{\mathrm{obs}}=\sum_j w_jR(x_i\mid x_j)I_j^{\mathrm{true}}$, with the source covariance determining the Gaussian normalization and correlated Mahalanobis distance. The implementation uses a sorted first-momentum-coordinate index to restrict candidate output samples, then applies independent component bounds and the exact covariance quadratic form. It avoids a full exhaustive $n_Q^2$ momentum comparison when Gaussian support is spatially localized, but it does not promise subquadratic work when every covariance spans the entire momentum grid. Neither source kernels nor boundary-truncated outputs are artificially renormalized. Sparse and correlated kernels can both be wrapped in `CoveredResolution` without changing the detector-coverage convention.
+
+```julia
+resolution = SpatialGaussianQEResolution(covariances, q_coordinates, energies, q_weights;
+                                         coordinate_frame=:cartesian, momentum_unit="1/Å", energy_unit="meV", nsigma=5.0)
+convolved = convolve_resolution(resolution, intrinsic_spectrum)
+```
+
+The optimized constant-covariance `GaussianQEResolution` follows the same spatial-search method and retains its previous analytical Gaussian normalization, integration weights, and cross-covariance conventions. Performance depends on momentum-point ordering and local support; validate a particular spectrometer sampling density against an independent quadrature reference before interpreting fitted parameters.

@@ -84,4 +84,45 @@ using LinearAlgebra
 
     transformed = forward(ForwardProblem(model; transformation=JordanWigner(1:2), observable=request, probe=probe, resolution=resolution))
     @test Phundamental.Observables.validate_observable_equivalence(calculation.result, transformed.result; rtol=1e-10, atol=1e-12)
+    @test validate_forward_equivalence(calculation, transformed).valid
+
+    @testset "F7 magnetic model-to-measurement and policy equivalence" begin
+        policy = ForwardExecutionPolicy(include_default_exact_routes=false)
+        route = ForwardRoute(ExactDiagonalization(); label=:f7_independent_ed)
+        plan = plan_forward(model, request; policy=policy, routes=(route,), probe=probe, resolution=resolution)
+        @test planning_report(plan).selected_label === :f7_independent_ed
+        @test planning_report(plan).selected_certified
+        @test isempty(planning_report(plan).selected_approximations)
+        planned = forward(plan)
+        agreement = validate_forward_equivalence(calculation, planned)
+        @test agreement.valid
+        @test all(Base.values(agreement.checks))
+        @test planned.result.metadata[:forward_planned]
+
+        predicted = portable_prediction(calculation; stage=:instrument, coordinate_frame=:cartesian,
+                                        coordinate_unit="1/Å", spectral_unit="meV", intensity_unit="arb/meV",
+                                        normalization="per_spin", provenance=Dict("origin" => "F7 magnetic reference"))
+        @test predicted.stage === :instrument
+        @test haskey(predicted.provenance, "forward")
+        @test import_result(export_result(predicted)).intensity ≈ predicted.intensity
+        values = Float64.(real.(predicted.intensity))
+        mask = trues(size(values))
+        mask[1, 2] = false
+        observed = values .+ 0.2
+        observed[1, 2] = NaN
+        errors = fill(0.5, size(values))
+        errors[1, 2] = NaN
+        measured = experimental_dataset(predicted.grid, observed; valid=mask, uncertainty=errors,
+                                        intensity_unit="arb/meV", normalization="per_spin")
+        comparison = compare_measurement(predicted, measured)
+        @test comparison.nvalid == count(mask)
+        @test isapprox(comparison.chi_squared, comparison.nvalid * (0.2 / 0.5)^2; atol=1e-8, rtol=1e-8)
+        @test compare_measurement(import_result(export_result(predicted)), import_result(export_result(measured))).chi_squared ≈ comparison.chi_squared
+        @test_throws ArgumentError compare_measurement(predicted, experimental_dataset(predicted.grid, observed;
+            valid=mask, uncertainty=errors, intensity_unit="incompatible", normalization="per_spin"))
+        @test_throws ArgumentError validate_forward_equivalence(calculation, planned; atol=-1)
+        @test_throws ArgumentError validate_forward_equivalence(calculation, planned; compare=(:instrument, :instrument))
+        @test_throws ArgumentError validate_forward_equivalence(calculation, planned; compare=(:unknown,))
+    end
+
 end

@@ -246,6 +246,11 @@ end
         @test isapprox(routed.observable_result, direct.observable_result; atol=1e-12)
         @test routed.solution.metadata[:forward_planned]
         @test routed.solution.metadata[:planned_solver] === :nlce
+        # F7: scalar NLCE estimates are comparable even without complete eigenenergy arrays.
+        scalar_equivalence = MSD.validate_forward_equivalence(repeated, routed;
+            compare=(:intrinsic, :instrument))
+        @test scalar_equivalence.valid
+        @test !MSD.validate_forward_equivalence(repeated, routed; compare=(:spectrum,)).valid
         alternative = MSD.prepare_forward(fixture.selection, representation; observable=request, policy=policy,
             routes=(MSD.ForwardRoute(MSD.NLCESolver(); method_context=context),))
         @test isapprox(MSD.forward_parameters(alternative, first_point).observable_result, direct.observable_result; atol=1e-12)

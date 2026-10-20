@@ -212,24 +212,44 @@ function forward_parameters(prepared::PreparedStructuralForward, values; paramet
     return _forward_selected_parameters(prepared, reduced)
 end
 
-"""Compare the spectral, intrinsic, probe and instrument stages of two forward results with structured diagnostics."""
+function _forward_stage_equivalent(a, b; atol::Real, rtol::Real)
+    isnothing(a) && return false
+    isnothing(b) && return false
+    if (a isa Number && b isa Number) || (a isa AbstractArray && b isa AbstractArray)
+        return isapprox(a, b; atol=atol, rtol=rtol)
+    end
+    applicable(Observables.validate_observable_equivalence, a, b) || return false
+    return Observables.validate_observable_equivalence(a, b; atol=atol, rtol=rtol)
+end
+
+"""Compare selected solver and observable stages of two forward results without assuming an eigenspectrum exists.
+
+`:spectrum` compares finite eigenenergies only; other result kinds should request the observable stages explicitly. A missing stage on either side is reported as `false`, not treated as equivalent. Unsupported stages and invalid tolerances are rejected.
+"""
 function validate_forward_equivalence(left::ForwardResult, right::ForwardResult;
                                       compare=(:spectrum, :intrinsic, :probe, :instrument), atol::Real=1e-8, rtol::Real=1e-9)
-    permitted = (:spectrum, :intrinsic, :probe, :instrument)
+    isfinite(atol) && atol >= 0 && isfinite(rtol) && rtol >= 0 ||
+        throw(ArgumentError("forward equivalence tolerances must be finite and nonnegative"))
     stages = Tuple(compare)
-    all(stage -> stage in permitted, stages) || throw(ArgumentError("unknown forward equivalence stage"))
     isempty(stages) && throw(ArgumentError("at least one equivalence stage is required"))
+    length(unique(stages)) == length(stages) || throw(ArgumentError("forward equivalence stages must not be repeated"))
+    permitted = (:spectrum, :intrinsic, :probe, :instrument)
+    all(stage -> stage in permitted, stages) || throw(ArgumentError("unknown forward equivalence stage"))
     checks = Dict{Symbol,Bool}()
     for stage in stages
         if stage === :spectrum
-            a = left.solution.energies
-            b = right.solution.energies
-            checks[stage] = length(a) == length(b) && isapprox(sort(collect(a)), sort(collect(b)); atol=atol, rtol=rtol)
+            if supports(left.solution, :energies) && supports(right.solution, :energies)
+                a = result_energies(left.solution)
+                b = result_energies(right.solution)
+                checks[stage] = length(a) == length(b) && isapprox(sort(collect(a)), sort(collect(b)); atol=atol, rtol=rtol)
+            else
+                checks[stage] = false
+            end
         else
-            a = getproperty(left, stage === :intrinsic ? :observable_result : stage === :probe ? :scattering_result : :result)
-            b = getproperty(right, stage === :intrinsic ? :observable_result : stage === :probe ? :scattering_result : :result)
-            checks[stage] = !isnothing(a) && !isnothing(b) &&
-                Observables.validate_observable_equivalence(a, b; atol=atol, rtol=rtol)
+            field = stage === :intrinsic ? :observable_result : stage === :probe ? :scattering_result : :result
+            a = getproperty(left, field)
+            b = getproperty(right, field)
+            checks[stage] = _forward_stage_equivalent(a, b; atol=atol, rtol=rtol)
         end
     end
     return (; valid=all(values(checks)), checks, atol, rtol)

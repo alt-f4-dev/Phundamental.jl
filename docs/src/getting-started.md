@@ -87,7 +87,7 @@ A declared `max_range` requires an explicit `range_evaluator(candidate)` that re
 
 ## Define a constraint-bearing parameter schema
 
-Batch 9 uses the existing `ParameterSpace` as the coupling schema attached to a `HamiltonianSpace`. The schema can enforce bounds together with fixed, shared, or general linear relations among named real coefficients.
+The existing `ParameterSpace` serves as the coupling schema attached to a `HamiltonianSpace`. The schema can enforce bounds together with fixed, shared, or general linear relations among named real coefficients.
 
 ```julia
 spin_space = SpinHilbertSpace([1//2])
@@ -108,11 +108,11 @@ println(parameter_constraint_report(point).valid)
 println(parameter_dof(schema))
 ```
 
-`parameter_binding(schema, :hz)` identifies the Hamiltonian-basis direction multiplied by `:hz` through its Batch 8 structural signature. `parameter_constraint_matrix(schema)` exposes the affine equalities as $A\boldsymbol\theta=\mathbf b$ for later inverse machinery. These constraints are independent of physical model-space admissibility and solver compatibility.
+`parameter_binding(schema, :hz)` identifies the Hamiltonian-basis direction multiplied by `:hz` through its canonical `StructuralSignature`. `parameter_constraint_matrix(schema)` exposes the affine equalities as $A\boldsymbol\theta=\mathbf b$ for later inverse machinery. These constraints are independent of physical model-space admissibility and solver compatibility.
 
 ## Generate a Hamiltonian family from material crystallography
 
-Batch 10 connects material geometry to the Batch 7--9 model-space, structural, and parameter layers. For a three-dimensional material, `generate_hamiltonian_family` converts the lattice geometry to the crystallography layer, discovers or accepts a space-group dataset, projects candidate operators into the invariant Hermitian subspace, audits physical admissibility, extracts canonical structure, and creates the corresponding `ParameterSpace`.
+Material-aware Hamiltonian generation connects material geometry to the physical model-space, structural, and parameter layers. For a three-dimensional material, `generate_hamiltonian_family` converts the lattice geometry to the crystallography layer, discovers or accepts a space-group dataset, projects candidate operators into the invariant Hermitian subspace, audits physical admissibility, extracts canonical structure, and creates the corresponding `ParameterSpace`.
 
 ```julia
 using LinearAlgebra

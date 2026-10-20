@@ -134,7 +134,72 @@ function GaussianQEResolution(covariance, q_coordinates, q_weights; coordinate_f
     return GaussianQEResolution(C, inv(C), norm, q, w, coordinate_frame, String(momentum_unit), String(energy_unit), Float64(nsigma))
 end
 
-function _check_resolution_q(R::GaussianQEResolution, q)
+"""Source-bin-dependent Gaussian Q–energy resolution. `covariance[:, :, iq, ie]` is the covariance of a true source bin.
+
+The true-energy axis and quadrature weights are explicit, and the kernel is a probability density (not row-renormalized).
+Off-diagonal Q–energy covariance is retained. All covariance matrices must be positive definite.
+"""
+struct SpatialGaussianQEResolution <: AbstractResolution
+    covariance::Array{Float64,4}
+    inverse_covariance::Array{Float64,4}
+    normalization::Matrix{Float64}
+    q_coordinates::Matrix{Float64}
+    energy::Vector{Float64}
+    q_weights::Vector{Float64}
+    coordinate_frame::Symbol
+    momentum_unit::String
+    energy_unit::String
+    nsigma::Float64
+end
+
+function SpatialGaussianQEResolution(covariances::AbstractArray{<:Real,4}, q_coordinates, energy, q_weights;
+                                     coordinate_frame::Symbol, momentum_unit::AbstractString, energy_unit::AbstractString,
+                                     nsigma::Real=5.0)
+    q = Matrix{Float64}(q_coordinates)
+    size(q, 1) >= 1 && size(q, 2) >= 1 && all(isfinite, q) ||
+        throw(ArgumentError("momentum coordinates must be nonempty, finite, and have shape (nQ, dimension)"))
+    x = Float64.(_check_axis_grid(energy))
+    w = Float64.(collect(q_weights))
+    length(w) == size(q, 1) && all(v -> isfinite(v) && v > 0, w) ||
+        throw(ArgumentError("momentum quadrature weights must be finite, positive, and have length nQ"))
+    coordinate_frame in (:cartesian, :reciprocal, :dimensionless) || throw(ArgumentError("invalid coordinate frame"))
+    isempty(momentum_unit) && throw(ArgumentError("momentum_unit must be explicit"))
+    isempty(energy_unit) && throw(ArgumentError("energy_unit must be explicit"))
+    isfinite(nsigma) && nsigma > 0 || throw(ArgumentError("nsigma must be finite and positive"))
+    d = size(q, 2) + 1
+    size(covariances) == (d, d, size(q, 1), length(x)) ||
+        throw(DimensionMismatch("covariance array must have shape (dimension+1, dimension+1, nQ, nE)"))
+    cov = Float64.(Array(covariances))
+    precision = similar(cov)
+    normalization = Matrix{Float64}(undef, size(q, 1), length(x))
+    for ix in eachindex(x), iq in axes(q, 1)
+        C = @view cov[:, :, iq, ix]
+        all(isfinite, C) && isapprox(C, transpose(C); rtol=1e-10, atol=1e-12) ||
+            throw(ArgumentError("source covariance must be finite and symmetric"))
+        F = cholesky(Hermitian(C); check=true)
+        normalization[iq, ix] = inv((2π)^(d / 2) * prod(diag(F.U)))
+        precision[:, :, iq, ix] .= inv(C)
+    end
+    return SpatialGaussianQEResolution(cov, precision, normalization, q, x, w, coordinate_frame,
+                                       String(momentum_unit), String(energy_unit), Float64(nsigma))
+end
+
+function SpatialGaussianQEResolution(covariance_function::Function, q_coordinates, energy, q_weights; kwargs...)
+    q = Matrix{Float64}(q_coordinates)
+    x = Float64.(_check_axis_grid(energy))
+    d = size(q, 2) + 1
+    cov = Array{Float64}(undef, d, d, size(q, 1), length(x))
+    for ix in eachindex(x), iq in axes(q, 1)
+        C = Matrix{Float64}(covariance_function(view(q, iq, :), x[ix]))
+        size(C) == (d, d) || throw(DimensionMismatch("covariance function returned a matrix with incorrect shape"))
+        cov[:, :, iq, ix] .= C
+    end
+    return SpatialGaussianQEResolution(cov, q, x, q_weights; kwargs...)
+end
+
+const _GaussianQEResolution = Union{GaussianQEResolution,SpatialGaussianQEResolution}
+
+function _check_resolution_q(R::_GaussianQEResolution, q)
     length(q) == size(R.q_coordinates, 1) || throw(DimensionMismatch("momentum grid and resolution coordinates differ in length"))
     for (i, entry) in enumerate(q)
         coordinates = if entry isa Real
@@ -156,26 +221,54 @@ function _check_resolution_q(R::GaussianQEResolution, q)
     end
 end
 
-function _qe_convolution(values::AbstractMatrix, q, axis, R::GaussianQEResolution)
+# Sorted first-coordinate neighborhoods replace the exhaustive nQ × nQ scan.
+# Independent diagonal-component bounds are conservative for correlated Gaussian kernels.
+function _qe_convolution(values::AbstractMatrix, q, axis, R::_GaussianQEResolution)
     x = Float64.(_check_axis_grid(axis))
     _check_resolution_q(R, q)
     size(values) == (size(R.q_coordinates, 1), length(x)) || throw(DimensionMismatch("Q–energy intensity grid mismatch"))
-    energy_weights = _energy_quadrature_weights(x)
+    if R isa SpatialGaussianQEResolution
+        length(x) == length(R.energy) && all(isapprox.(x, R.energy; rtol=1e-12, atol=1e-12)) ||
+            throw(ArgumentError("spatial resolution and spectrum true-energy axes must agree"))
+    end
     out = zeros(promote_type(eltype(values), Float64), size(values))
+    energy_weights = _energy_quadrature_weights(x)
     d = size(R.q_coordinates, 2)
-    sigma = sqrt.(diag(R.covariance))
-    for iq in axes(values, 1), jq in axes(values, 1)
-        dq = view(R.q_coordinates, iq, :) .- view(R.q_coordinates, jq, :)
-        any(abs(dq[k]) > R.nsigma * sigma[k] for k in 1:d) && continue
-        for ix in axes(values, 2)
-            lower = searchsortedfirst(x, x[ix] - R.nsigma * sigma[end])
-            upper = searchsortedlast(x, x[ix] + R.nsigma * sigma[end])
-            for jx in lower:upper
+    ordering = sortperm(view(R.q_coordinates, :, 1))
+    sorted_first = R.q_coordinates[ordering, 1]
+    cutoff2 = R.nsigma^2
+    for jq in axes(values, 1), jx in axes(values, 2)
+        source_value = values[jq, jx]
+        iszero(source_value) && continue
+        C = R isa SpatialGaussianQEResolution ? view(R.covariance, :, :, jq, jx) : R.covariance
+        P = R isa SpatialGaussianQEResolution ? view(R.inverse_covariance, :, :, jq, jx) : R.inverse_covariance
+        amplitude = R isa SpatialGaussianQEResolution ? R.normalization[jq, jx] : R.normalization
+        sigma_e = sqrt(C[d+1, d+1])
+        lower_e = searchsortedfirst(x, x[jx] - R.nsigma * sigma_e)
+        upper_e = searchsortedlast(x, x[jx] + R.nsigma * sigma_e)
+        lower_e > upper_e && continue
+        radius = R.nsigma * sqrt(C[1, 1])
+        center = R.q_coordinates[jq, 1]
+        lower_q = searchsortedfirst(sorted_first, center - radius)
+        upper_q = searchsortedlast(sorted_first, center + radius)
+        for sorted_iq in lower_q:upper_q
+            iq = ordering[sorted_iq]
+            any(abs(R.q_coordinates[iq, k] - R.q_coordinates[jq, k]) > R.nsigma * sqrt(C[k, k]) for k in 2:d) && continue
+            qq = 0.0
+            cross = 0.0
+            for a in 1:d
+                da = R.q_coordinates[iq, a] - R.q_coordinates[jq, a]
+                cross += da * P[a, d+1]
+                for b in 1:d
+                    qq += da * P[a, b] * (R.q_coordinates[iq, b] - R.q_coordinates[jq, b])
+                end
+            end
+            factor = amplitude * R.q_weights[jq] * energy_weights[jx] * source_value
+            for ix in lower_e:upper_e
                 dw = x[ix] - x[jx]
-                z = [dq; dw]
-                mahalanobis = dot(z, R.inverse_covariance * z)
-                mahalanobis > R.nsigma^2 && continue
-                out[iq, ix] += R.normalization * exp(-mahalanobis / 2) * R.q_weights[jq] * energy_weights[jx] * values[jq, jx]
+                mahalanobis = qq + 2 * cross * dw + P[d+1, d+1] * dw^2
+                mahalanobis > cutoff2 && continue
+                out[iq, ix] += factor * exp(-0.5 * max(mahalanobis, 0.0))
             end
         end
     end
@@ -212,7 +305,7 @@ function _qe_convolution(values::AbstractMatrix, q, axis, R::SparseQEResolution)
 end
 
 const _GeneralEnergyResolution = Union{EnergyDependentGaussianResolution,TabulatedGaussianResolution,TabulatedEnergyResolution}
-const _GeneralQEResolution = Union{GaussianQEResolution,SparseQEResolution}
+const _GeneralQEResolution = Union{GaussianQEResolution,SpatialGaussianQEResolution,SparseQEResolution}
 
 function _convolved_result(spectrum::SpectrumResult, values, R)
     metadata = _general_resolution_metadata(spectrum.metadata, R)

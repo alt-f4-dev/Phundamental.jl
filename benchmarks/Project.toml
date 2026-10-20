@@ -1,0 +1,21 @@
+name = "PhundamentalBenchmarks"
+uuid = "e49d13a5-b6ef-4a93-ac8a-1be1ef840956"
+version = "0.1.0"
+
+[deps]
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Phundamental = "21d6a088-d3df-47da-92e1-38fc81b0985c"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[sources]
+Phundamental = {path = "/home/void/Repos/Phundamental.jl"}
+
+[compat]
+GLMakie = "0.10, 0.11, 0.12, 0.13, 0.14"
+Phundamental = "0.0.9, 0.1"
+julia = "1.12"

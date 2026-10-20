@@ -12,7 +12,7 @@ $$\boxed{\text{physical representation}\neq\text{numerical backend}}$$
 
 Likewise, `AutoSolver` performs exact specialization only; it does not choose a physical approximation such as linear spin-wave theory on the user's behalf.
 
-The package-level Batch 6 planner generalizes this rule without moving policy into the solver module. `plan_forward` may choose among compatible exact solver routes automatically, but approximation-bearing solvers participate only when the caller supplies a complete `ForwardRoute` and explicitly authorizes the corresponding approximation symbols through `ForwardExecutionPolicy`. Solver capability remains a factual property; execution policy remains a separate decision layer.
+The package-level forward planner generalizes this rule without moving policy into the solver module. `plan_forward` may choose among compatible exact solver routes automatically, but approximation-bearing solvers participate only when the caller supplies a complete `ForwardRoute` and explicitly authorizes the corresponding approximation symbols through `ForwardExecutionPolicy`. Solver capability remains a factual property; execution policy remains a separate decision layer.
 
 ## Solver protocol and results
 
@@ -183,139 +183,11 @@ The package maintains dense and generic paths as references rather than deleting
 
 ## API reference
 
-### Solver protocol and results
+The documented solver API is divided into focused reference pages to keep each Documenter page readable and within the HTML size warning threshold. All documented symbols remain in the solver module; this change reorganizes documentation only.
 
-```@docs
-AbstractSolver
-solve
-solver_name
-SolverResult
-EnergySpectrumResult
-nlevels
-states
-eigenstate
-groundenergy
-groundstate
-isbiorthogonal
-TimeEvolutionResult
-energy_spectrum
-```
-
-### Numerical capabilities
-
-```@docs
-NumericalCapabilities
-TransformationCapabilities
-numerical_capabilities
-transformation_capabilities
-```
-
-### Computational basis and matrix realization
-
-```@docs
-SpinBasisState
-FermionBasisState
-BosonBasisState
-CompositeBasisState
-ComputationalBasis
-computational_basis
-MatrixRealizationResult
-realize
-matrix
-hamiltonian_matrix
-SymbolicLinearOperator
-```
-
-### Optimized dispatch
-
-```@docs
-OptimizedLanczos
-AutoSolver
-optimized_backend
-optimized_matrix_free_operator
-```
-
-### Sectors
-
-```@docs
-SpinSector
-FermionSector
-QuantumNumber
-QuantumNumberSector
-CompositeSector
-spin_sector_profile
-spin_sector_plan
-```
-
-### Mode solvers
-
-```@docs
-QuadraticModeResult
-PhononModeResult
-PhononDispersionResult
-SpinWaveResult
-BosonSubspaceProjection
-orthogonal_boson_subspace
-HarmonicPhononSolver
-LinearSpinWaveSolver
-mode_energies
-mode_vectors
-dynamical_matrix
-dynamical_matrix!
-dynamical_gradient!
-dynamical_hessian!
-acoustic_sum_rule_residual
-group_velocities
-directional_group_velocities
-phonon_dispersion
-phonon_zero_point_energy
-spinwave_zero_point_correction
-spinwave_ground_energy
-```
-
-### Krylov tools
-
-```@docs
-ContinuedFractionResult
-continued_fraction
-continued_fraction_spectrum
-exp_action
-```
-
-### Fermion Green functions and CPT
-
-```@docs
-FermionGreenWorkspace
-fermion_transition_vector
-fermion_green_workspace
-cluster_green_matrix
-cpt_intercluster_hopping
-cluster_perturbation_green_matrix
-cpt_periodize
-cluster_perturbation_green
-```
-
-### Classical sampling
-
-```@docs
-IsingProblem
-MetropolisSampler
-ConfigurationEnsemble
-sample
-ising_flip_delta
-autocorrelation_time
-validate_metropolis_detailed_balance
-validate_sampling_against_exact_classical
-```
-
-### Validation helpers
-
-```@docs
-validate_optimized_against_generic
-validate_packed_spin_implicit_basis
-validate_packed_spin_rank_lookup
-validate_spin_sector_decomposition
-```
+- [Solver protocol, capabilities, bases, and sectors](solvers-reference-foundation.md) covers the common solver interface, numerical capability diagnostics, computational bases, matrix realization, optimized dispatch, and symmetry sectors.
+- [Quadratic, phonon, and spin-wave solvers](solvers-reference-modes.md) covers mode results, bosonic projections, harmonic phonons, and linear spin-wave calculations.
+- [Krylov, fermionic Green functions, classical sampling, and validation](solvers-reference-methods.md) covers continued fractions, time propagation, cluster perturbation theory, Ising sampling, and numerical validation helpers.
 
 ## Additional exported solver API
 

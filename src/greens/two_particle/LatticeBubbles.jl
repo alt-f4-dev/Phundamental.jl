@@ -168,3 +168,108 @@ function local_bubble(green::GreenFunction, bosonic_axis::BosonicMatsubaraAxis; 
     bubble.metadata[:diagonal_in_fermionic_indices] = true
     return bubble
 end
+
+
+"""Matrix momentum Green function with storage order `(a, b, k, ν)` and explicit orbital labels and weights."""
+struct MatrixMomentumResolvedGreenFunction{A<:FermionicMatsubaraAxis,K,M}
+    axis::A
+    kpoints::K
+    values::Array{ComplexF64,4}
+    weights::Vector{Float64}
+    labels::Vector{Symbol}
+    metadata::M
+end
+
+function MatrixMomentumResolvedGreenFunction(axis::A, kpoints, values::AbstractArray{<:Number,4};
+                                              weights=nothing, labels=nothing, metadata=Dict{Symbol,Any}()) where {A<:FermionicMatsubaraAxis}
+    cube = ComplexF64.(values)
+    n, m, nk, nfreq = size(cube)
+    n > 0 && n == m && nk > 0 && nfreq == length(axis) || throw(DimensionMismatch("matrix Green values must have shape (n,n,nk,nfermionic)"))
+    all(z -> isfinite(real(z)) && isfinite(imag(z)), cube) || throw(ArgumentError("matrix Green values must be finite"))
+    ks = collect(kpoints)
+    length(ks) == nk || throw(DimensionMismatch("momentum-point count does not match matrix Green values"))
+    w = isnothing(weights) ? fill(inv(nk), nk) : Float64.(collect(weights))
+    length(w) == nk || throw(DimensionMismatch("Green-function momentum weights have incorrect size"))
+    all(x -> isfinite(x) && x >= 0, w) && sum(w) > 0 || throw(ArgumentError("momentum weights must be finite and nonnegative"))
+    w ./= sum(w)
+    names = isnothing(labels) ? [Symbol("orbital_", i) for i in 1:n] : Symbol.(collect(labels))
+    length(names) == n && length(unique(names)) == n || throw(DimensionMismatch("orbital labels must be distinct and match the orbital dimension"))
+    return MatrixMomentumResolvedGreenFunction{A,typeof(ks),typeof(metadata)}(axis, ks, cube, w, names, metadata)
+end
+
+"""Matrix Dyson equation on a momentum Hamiltonian cube, with a frequency-local matrix self-energy."""
+function momentum_green(hamiltonians::AbstractArray{<:Number,3}, axis::FermionicMatsubaraAxis, sigma::SelfEnergy;
+                        chemical_potential::Real=0.0, kpoints=collect(axes(hamiltonians, 3)), labels=nothing, weights=nothing)
+    n, m, nk = size(hamiltonians)
+    n > 0 && n == m && nk > 0 || throw(DimensionMismatch("matrix dispersion must have shape (n,n,nk)"))
+    matrix_dimension(sigma) == n || throw(DimensionMismatch("orbital dispersion and self-energy dimensions disagree"))
+    _compatible_frequency_objects(sigma, zero_self_energy(axis, n))
+    isfinite(chemical_potential) || throw(ArgumentError("chemical potential must be finite"))
+    h = ComplexF64.(hamiltonians)
+    all(z -> isfinite(real(z)) && isfinite(imag(z)), h) || throw(ArgumentError("orbital dispersion must be finite"))
+    for ik in 1:nk
+        isapprox(view(h, :, :, ik), adjoint(view(h, :, :, ik)); atol=1e-10, rtol=1e-10) ||
+            throw(ArgumentError("matrix Dyson propagation requires a Hermitian single-particle Hamiltonian"))
+    end
+    declared = isnothing(labels) ? [Symbol("orbital_", i) for i in 1:n] : Symbol.(collect(labels))
+    generic = [Symbol("component_", i) for i in 1:n]
+    sigma.labels == declared || sigma.labels == generic ||
+        throw(ArgumentError("explicit self-energy orbital labels disagree with the matrix Hamiltonian"))
+    cube = Array{ComplexF64}(undef, n, n, nk, length(axis))
+    identity = Matrix{ComplexF64}(I, n, n)
+    @inbounds for iν in eachindex(axis.values), ik in 1:nk
+        kernel = (axis[iν] + chemical_potential) * identity - view(h, :, :, ik) - sigma[iν]
+        cube[:, :, ik, iν] .= _solve_inverse_matrix(kernel)
+    end
+    return MatrixMomentumResolvedGreenFunction(axis, kpoints, cube; weights=weights, labels=labels,
+        metadata=Dict{Symbol,Any}(:construction => :matrix_local_self_energy_dyson, :chemical_potential => Float64(chemical_potential)))
+end
+
+"""Frequency-diagonal orbital-pair bubble with `(a,b,c,d,ν,Ω)` ordering at one momentum transfer.
+
+The component is `-β Σₖ wₖ G[a,c](k+q,ν+Ω) G[d,b](k,ν)` and is not a scalar `GeneralizedSusceptibility`.
+"""
+struct OrbitalLatticeBubble{F<:FermionicMatsubaraAxis,B<:BosonicMatsubaraAxis}
+    fermionic_axis::F
+    bosonic_axis::B
+    values::Array{ComplexF64,6}
+    labels::Vector{Symbol}
+    metadata::Dict{Symbol,Any}
+end
+
+"""Construct an orbital-resolved particle-hole bubble without implying a matrix Bethe-Salpeter or DΓA solver."""
+function orbital_lattice_bubble(green::MatrixMomentumResolvedGreenFunction, qmaps, bosonic_axis::BosonicMatsubaraAxis;
+                                missing_frequency::Symbol=:error)
+    get(green.metadata, :bloch_gauge, :periodic) === :periodic ||
+        throw(ArgumentError("bare orbital bubbles require the periodic Bloch gauge; embedded orbital centers require momentum-folding phase transport"))
+    isapprox(green.axis.beta, bosonic_axis.beta; atol=16eps(Float64) * max(green.axis.beta, 1.0), rtol=0.0) ||
+        throw(ArgumentError("fermionic and bosonic axes must have the same inverse temperature"))
+    missing_frequency in (:error, :zero) || throw(ArgumentError("missing_frequency must be :error or :zero"))
+    n, _, nk, _ = size(green.values)
+    isnothing(qmaps) && throw(ArgumentError("orbital_lattice_bubble requires explicit k-to-k+q index maps"))
+    maps = [Int.(collect(mapping)) for mapping in qmaps]
+    all(mapping -> length(mapping) == nk && sort(mapping) == collect(1:nk), maps) ||
+        throw(ArgumentError("each orbital q map must be a permutation of the momentum grid"))
+    shifted, active = _bubble_frequency_maps(green.axis, bosonic_axis)
+    missing = sum(length(green.axis) - length(indices) for indices in active)
+    if missing_frequency === :error && missing > 0
+        throw(ArgumentError("fermionic frequency box does not contain all ν+Ω shifts"))
+    end
+    output = Vector{OrbitalLatticeBubble}(undef, length(maps))
+    @inbounds for (iq, mapping) in enumerate(maps)
+        values = zeros(ComplexF64, n, n, n, n, length(green.axis), length(bosonic_axis))
+        for iΩ in eachindex(bosonic_axis.indices), iν in eachindex(green.axis.indices)
+            jν = shifted[iΩ][iν]
+            iszero(jν) && continue
+            for ik in 1:nk, a in 1:n, b in 1:n, c in 1:n, d in 1:n
+                values[a, b, c, d, iν, iΩ] -= green.axis.beta * green.weights[ik] *
+                    green.values[a, c, mapping[ik], jν] * green.values[d, b, ik, iν]
+            end
+        end
+        metadata = Dict{Symbol,Any}(:q_index => iq, :construction => :orbital_particle_hole_bubble,
+            :frequency_box_complete => iszero(missing), :missing_frequency_policy => missing_frequency,
+            :diagonal_in_fermionic_indices => true, :normalization => :minus_beta_weighted_sum)
+        output[iq] = OrbitalLatticeBubble(green.axis, bosonic_axis, values, copy(green.labels), metadata)
+    end
+    return output, (missing_frequency_entries=missing * length(maps), frequency_box_complete=iszero(missing))
+end

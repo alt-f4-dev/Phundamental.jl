@@ -5,7 +5,7 @@
 """
     HamiltonianGenerationResult
 
-Material-aware result of Batch 10 Hamiltonian-family generation. The object retains the crystallographic source, physical `GenerativeSpecification`, generated `HamiltonianSpace`, canonical `ModelStructure`, and constraint-bearing `ParameterSpace` as separate inspectable stages.
+Material-aware result of crystallographic Hamiltonian-family generation. The object retains the crystallographic source, physical `GenerativeSpecification`, generated `HamiltonianSpace`, canonical `ModelStructure`, and constraint-bearing `ParameterSpace` as separate inspectable stages.
 """
 struct HamiltonianGenerationResult{M,C,X,D,G,H,S,P,MD}
     material::M
@@ -489,7 +489,7 @@ end
     generate_hamiltonian_family(material, algebra; kwargs...)
     generate_hamiltonian_family(material, cluster, algebra; kwargs...)
 
-Generate a crystallographically invariant Hamiltonian family and return all authoritative Batch 7--10 layers together: physical specification, admissible Hamiltonian space, canonical structure, and constraint-bearing parameter schema. Material overloads derive the crystallographic structure and specification before invoking the existing invariant generator.
+Generate a crystallographically invariant Hamiltonian family and return the physical and structural construction stages together: physical specification, admissible Hamiltonian space, canonical structure, and constraint-bearing parameter schema. Material overloads derive the crystallographic structure and specification before invoking the existing invariant generator.
 
 The material-only overload addresses degrees of freedom in the primitive cell. Use the periodic-supercell overload when distinct translated sites must appear explicitly in candidate interactions.
 """
@@ -616,7 +616,7 @@ end
 """
     instantiate_model(result, representation, parameters=ParameterPoint(result.parameter_space); kwargs...)
 
-Instantiate one `ManyBodyModel` from a generated Hamiltonian family while retaining a provenance record identifying the Batch 10 generator and structural signature. Physical/model-space and parameter-schema validation are delegated to the existing Foundation constructors.
+Instantiate one `ManyBodyModel` from a generated Hamiltonian family while retaining a provenance record identifying the crystallographic generator and structural signature. Physical/model-space and parameter-schema validation are delegated to the existing Foundation constructors.
 """
 function instantiate_model(result::HamiltonianGenerationResult, representation::Representation, parameters=ParameterPoint(result.parameter_space);
                            observables=Dict{Symbol,Any}(), metadata_parameters=Dict{Symbol,Any}(), provenance=Any[])

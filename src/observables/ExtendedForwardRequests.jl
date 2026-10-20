@@ -142,3 +142,149 @@ function (request::HarmonicMultiphononSliceRequest)(model::ManyBodyModel, result
     output.metadata[:request_metadata] = copy(request.metadata)
     return output
 end
+
+# Exact finite-basis magnetic response, with an explicit field-conjugate moment operator.
+
+"""Static zero-field isothermal susceptibility versus temperature, using the complete Lehmann/Kubo response.
+
+`moment` is the Hermitian physical moment component coupled as `H(B) = H(0) - B * moment`.
+Its direction and units are explicit; no implicit g factor, Bohr magneton, or physical kB conversion is applied.
+Temperatures must be strictly positive to avoid an ambiguous degenerate-ground-state derivative.
+"""
+struct MagneticSusceptibilityRequest{O,M} <: AbstractObservable
+    moment::O
+    temperatures::Vector{Float64}
+    direction::Symbol
+    kB::Float64
+    field_unit::String
+    moment_unit::String
+    metadata::M
+end
+
+"""Field-dependent magnetization `<moment>` on the `(field, temperature)` grid from the exact Zeeman-shifted Hamiltonian."""
+struct MagnetizationCurveRequest{O,M} <: AbstractObservable
+    moment::O
+    fields::Vector{Float64}
+    temperatures::Vector{Float64}
+    direction::Symbol
+    kB::Float64
+    field_unit::String
+    moment_unit::String
+    metadata::M
+end
+
+"""Exact static magnetic response; `values` has shape `(length(fields), length(temperatures))`."""
+struct MagneticResponseCurve
+    kind::Symbol
+    direction::Symbol
+    fields::Vector{Float64}
+    temperatures::Vector{Float64}
+    values::Matrix{Float64}
+    moment_unit::String
+    field_unit::String
+    kB::Float64
+    metadata::Dict{Symbol,Any}
+end
+
+function _magnetic_request_validation(temperatures, direction, kB, field_unit, moment_unit; allow_zero)
+    Ts = Float64.(collect(temperatures))
+    isempty(Ts) && throw(ArgumentError("magnetic response requires at least one temperature"))
+    all(T -> isfinite(T) && (allow_zero ? T >= 0 : T > 0), Ts) ||
+        throw(ArgumentError("magnetic response temperatures must be finite and $(allow_zero ? "nonnegative" : "positive")"))
+    direction in (:x, :y, :z) || throw(ArgumentError("magnetic direction must be :x, :y, or :z"))
+    isfinite(kB) && kB > 0 || throw(ArgumentError("kB must be finite and positive in energy/temperature units"))
+    !isempty(field_unit) && !isempty(moment_unit) || throw(ArgumentError("field and moment units must be explicit"))
+    return Ts
+end
+
+function MagneticSusceptibilityRequest(moment, temperatures; direction::Symbol, kB::Real=1.0,
+                                       field_unit::AbstractString, moment_unit::AbstractString,
+                                       metadata=Dict{Symbol,Any}())
+    Ts = _magnetic_request_validation(temperatures, direction, kB, field_unit, moment_unit; allow_zero=false)
+    return MagneticSusceptibilityRequest(moment, Ts, direction, Float64(kB), String(field_unit), String(moment_unit), Dict{Symbol,Any}(metadata))
+end
+
+function MagnetizationCurveRequest(moment, fields, temperatures; direction::Symbol, kB::Real=1.0,
+                                   field_unit::AbstractString, moment_unit::AbstractString,
+                                   metadata=Dict{Symbol,Any}())
+    Ts = _magnetic_request_validation(temperatures, direction, kB, field_unit, moment_unit; allow_zero=true)
+    Bs = Float64.(collect(fields))
+    !isempty(Bs) && all(isfinite, Bs) || throw(ArgumentError("magnetic fields must be finite and nonempty"))
+    return MagnetizationCurveRequest(moment, Bs, Ts, direction, Float64(kB), String(field_unit), String(moment_unit), Dict{Symbol,Any}(metadata))
+end
+
+function _magnetic_eigensystem(model::ManyBodyModel, result::SolverResult, moment)
+    isbiorthogonal(result) && throw(ArgumentError("static magnetic response requires a Hermitian physical eigensystem"))
+    length(result.energies) == length(result.basis) || throw(ArgumentError("magnetic response requires a complete eigensystem"))
+    V = result.right_states
+    size(V) == (length(result.basis), length(result.basis)) || throw(DimensionMismatch("eigenvectors must form a complete basis"))
+    isapprox(V' * V, I; atol=1e-9, rtol=1e-9) || throw(ArgumentError("magnetic response requires an orthonormal eigenbasis"))
+    E = result.energies
+    maximum(abs, imag.(E)) <= 1e-10 * max(maximum(abs, E), 1.0) || throw(ArgumentError("magnetic energies must be real"))
+    hbar = hasproperty(result.solver, :hbar) ? result.solver.hbar : get(model.parameters, :hbar, 1.0)
+    op = if moment isa Symbol
+        haskey(model.observables, moment) || throw(ArgumentError("magnetic moment symbol is not a registered model observable"))
+        model.observables[moment]
+    elseif moment isa ObservableRef
+        resolve_observable(model, moment)
+    else
+        moment
+    end
+    M = Matrix{ComplexF64}(matrix(op, result.basis; sparse=false, hbar=hbar))
+    isapprox(M, M'; atol=1e-10, rtol=1e-10) || throw(ArgumentError("magnetic moment must be Hermitian"))
+    return Float64.(real.(E)), V, Hermitian((M + M') / 2)
+end
+
+function _magnetic_weights(E::AbstractVector{<:Real}, T::Float64, kB::Float64)
+    shifted = E .- minimum(E)
+    if T == 0
+        tol = 1e-10 * max(maximum(abs, E), 1.0)
+        valid = shifted .<= tol
+        return Float64.(valid) ./ count(valid)
+    end
+    weights = exp.(-shifted ./ (kB * T))
+    return weights ./ sum(weights)
+end
+
+function (request::MagneticSusceptibilityRequest)(model::ManyBodyModel, solution::SolverResult)
+    E, V, M = _magnetic_eigensystem(model, solution, request.moment)
+    Me = V' * M * V
+    values = Matrix{Float64}(undef, 1, length(request.temperatures))
+    tol = 1e-10 * max(maximum(abs, E), 1.0)
+    for (it, T) in enumerate(request.temperatures)
+        p = _magnetic_weights(E, T, request.kB)
+        beta = inv(request.kB * T)
+        meanM = sum(p .* real.(diag(Me)))
+        response = 0.0
+        for n in eachindex(E), m in eachindex(E)
+            delta = E[n] - E[m]
+            coeff = abs(delta) <= tol ? beta * (p[m] + p[n]) / 2 : (p[m] - p[n]) / delta
+            response += coeff * abs2(Me[m, n])
+        end
+        values[1, it] = response - beta * meanM^2
+    end
+    metadata = merge(copy(request.metadata), Dict{Symbol,Any}(:method => :exact_lehmann_kubo,
+                     :zeeman_convention => :minus_field_times_moment, :requires_complete_eigensystem => true, :response_kind => :static_susceptibility,
+                     :frequency_domain => :static, :operator_channels => (request.direction,), :response_order => 2))
+    return MagneticResponseCurve(:susceptibility, request.direction, [0.0], copy(request.temperatures), values,
+                                 request.moment_unit, request.field_unit, request.kB, metadata)
+end
+
+function (request::MagnetizationCurveRequest)(model::ManyBodyModel, solution::SolverResult)
+    E, V, M = _magnetic_eigensystem(model, solution, request.moment)
+    H = Hermitian(V * Diagonal(E) * V')
+    values = Matrix{Float64}(undef, length(request.fields), length(request.temperatures))
+    for (ib, B) in enumerate(request.fields)
+        F = eigen(Hermitian(H - B * M))
+        Me = F.vectors' * M * F.vectors
+        moments = real.(diag(Me))
+        for (it, T) in enumerate(request.temperatures)
+            values[ib, it] = dot(_magnetic_weights(F.values, T, request.kB), moments)
+        end
+    end
+    metadata = merge(copy(request.metadata), Dict{Symbol,Any}(:method => :exact_field_diagonalization,
+                     :zeeman_convention => :minus_field_times_moment, :requires_complete_eigensystem => true, :response_kind => :magnetization,
+                     :frequency_domain => :static, :operator_channels => (request.direction,), :response_order => 1))
+    return MagneticResponseCurve(:magnetization, request.direction, copy(request.fields), copy(request.temperatures), values,
+                                 request.moment_unit, request.field_unit, request.kB, metadata)
+end

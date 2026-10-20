@@ -16,15 +16,29 @@ struct ForwardProblem{M,T,S,A,K,C,O,P,R,D}
     probe::P
     resolution::R
     metadata::D
+
+    # Inner validation also applies to the full positional constructor. Without it,
+    # field-exact arguments could bypass the checked keyword constructor.
+    function ForwardProblem(model::M, transformation::T, solver::S, solver_args::A, solver_kwargs::K,
+                            method_context::C, observable::O, probe::P, resolution::R, metadata::D) where {M,T,S,A,K,C,O,P,R,D}
+        model isa ManyBodyModel || throw(ArgumentError("forward model must be a ManyBodyModel"))
+        solver isa AbstractSolver || throw(ArgumentError("forward solver must be an AbstractSolver"))
+        solver_args isa Tuple || throw(ArgumentError("solver_args must be a Tuple"))
+        solver_kwargs isa NamedTuple || throw(ArgumentError("solver_kwargs must be a NamedTuple"))
+        (isnothing(transformation) || transformation isa AbstractTransformation) ||
+            throw(ArgumentError("transformation must be AbstractTransformation or nothing"))
+        (isnothing(method_context) || method_context isa AbstractForwardMethodContext) ||
+            throw(ArgumentError("method_context must be AbstractForwardMethodContext or nothing"))
+        (!isnothing(observable) || isnothing(probe)) || throw(ArgumentError("probe requires an observable calculation"))
+        (!isnothing(observable) || isnothing(resolution)) || throw(ArgumentError("resolution requires an observable calculation"))
+        return new{M,T,S,A,K,C,O,P,R,D}(model, transformation, solver, solver_args, solver_kwargs,
+                                         method_context, observable, probe, resolution, metadata)
+    end
 end
 
 function ForwardProblem(model::ManyBodyModel; transformation=nothing, solver::AbstractSolver=ExactDiagonalization(), solver_args::Tuple=(),
                         solver_kwargs::NamedTuple=(;), method_context=nothing, observable=nothing, probe=nothing, resolution=nothing,
                         metadata=Dict{Symbol,Any}())
-    !isnothing(transformation) && !(transformation isa AbstractTransformation) && throw(ArgumentError("transformation must be AbstractTransformation or nothing"))
-    !isnothing(method_context) && !(method_context isa AbstractForwardMethodContext) && throw(ArgumentError("method_context must be AbstractForwardMethodContext or nothing"))
-    !isnothing(probe) && isnothing(observable) && throw(ArgumentError("probe requires an observable calculation"))
-    !isnothing(resolution) && isnothing(observable) && throw(ArgumentError("resolution requires an observable calculation"))
     return ForwardProblem(model, transformation, solver, solver_args, solver_kwargs, method_context, observable, probe, resolution, metadata)
 end
 

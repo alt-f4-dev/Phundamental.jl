@@ -159,7 +159,7 @@ compose(ts::AbstractTransformation...) = CompositeTransformation(ts...)
 """
     structurally_related(source, target, transformation)
 
-Return true when an exact, non-approximate representation transformation maps `source` to a model whose canonical Batch 8 structure is structurally equivalent to `target`. This relation does not collapse the source and target structural signatures; it records equivalence through an explicit transformation.
+Return true when an exact, non-approximate representation transformation maps `source` to a model whose canonical structure is structurally equivalent to `target`. This relation does not collapse the source and target structural signatures; it records equivalence through an explicit transformation.
 """
 function structurally_related(source::ManyBodyModel, target::ManyBodyModel, transformation::AbstractTransformation)
     cert = certificate(transformation)

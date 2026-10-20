@@ -9,6 +9,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: phundamental-development-gh-pages
+  cancel-in-progress: false
+
 jobs:
   build:
     permissions:

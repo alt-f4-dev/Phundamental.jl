@@ -1,6 +1,6 @@
 # Phundamental.jl
 
-[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://alt-f4-dev.github.io/Phundamental.jl/stable/) [![Documentation Build](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml/badge.svg)](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml) [![Julia](https://img.shields.io/badge/Julia-1.12%2B-9558B2.svg)](https://julialang.org/) [![Version](https://img.shields.io/badge/version-v0.0.9-informational.svg)](https://github.com/alt-f4-dev/Phundamental.jl/tree/v0.0.9)
+[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://alt-f4-dev.github.io/Phundamental.jl/stable/) [![Documentation Build](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml/badge.svg)](https://github.com/alt-f4-dev/Phundamental.jl/actions/workflows/documentation.yml) [![Julia](https://img.shields.io/badge/Julia-1.12%2B-9558B2.svg)](https://julialang.org/) [![Version](https://img.shields.io/badge/version-v0.1.0-informational.svg)](https://github.com/alt-f4-dev/Phundamental.jl/tree/v0.1.0)
 
 `Phundamental.jl` is a representation-aware Julia framework for constructing, transforming, solving, and analyzing quantum many-body models. The design philosophy is to maintain a strict boundary between the physical model, mathematical representation, numerical approximation, solver backend, observable definition, probe response, and instrument response, keeping each of these concepts explicitly separated.
 

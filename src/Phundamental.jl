@@ -524,22 +524,20 @@ using ..PhundamentalCore
 using ..Solvers
 
 include("observables/ObservableTypes.jl")
-include("observables/CorrelationFunctions.jl")
-include("observables/DynamicStructureFactor.jl")
-include("observables/CompositeResponses.jl")
-include("observables/ForwardRequests.jl")
-include("observables/ExtendedForwardRequests.jl")
-include("observables/RequestRequirements.jl")
-include("observables/SpinWaveStructureFactor.jl")
-include("observables/StaticStructureFactor.jl")
-include("observables/SpectralFunctions.jl")
-include("observables/ElectronSpectra.jl")
-include("observables/ResponseConversions.jl")
-include("observables/Scattering.jl")
-include("observables/HarmonicMultiphonon.jl")
+include("observables/correlations/CorrelationFunctions.jl")
+include("observables/scattering/DynamicStructureFactor.jl")
+include("observables/correlations/CompositeResponses.jl")
+include("observables/requests/ForwardRequests.jl")
+include("observables/requests/SpecializedRequests.jl")
+include("observables/requests/RequestRequirements.jl")
+include("observables/scattering/SpinWaveStructureFactor.jl")
+include("observables/scattering/StaticStructureFactor.jl")
+include("observables/spectra/SpectralFunctions.jl")
+include("observables/scattering/Scattering.jl")
+include("observables/scattering/HarmonicMultiphonon.jl")
 include("observables/EnsembleObservables.jl")
-include("observables/Resolution.jl")
-include("observables/GeneralResolution.jl")
+include("observables/resolution/Resolution.jl")
+include("observables/resolution/GeneralResolution.jl")
 include("observables/Validation.jl")
 
 export AbstractObservable,
@@ -1088,36 +1086,113 @@ using ..Models: AndersonImpurityModel, build_model
 using ..Thermodynamics: AbstractThermalState, ExactGibbs, ExactGibbsState, ThermalEstimate, thermal_state
 import ..Thermodynamics: expectation
 using ..Greens
+import ..Greens: matsubara_green, impurity_two_particle, bethe_salpeter
 import ..Greens: momentum_green, _compatible_frequency_objects, _solve_inverse_matrix, _compatible_two_particle, _two_particle_values, _stable_inverse, _bubble_inverse, _common_active_two_particle_indices
 using ..Observables: SusceptibilityResult
 using ..Solvers: AbstractSolver, ComputationalBasis, ExactDiagonalization, FermionSector, matrix
 import ..Solvers: _packed_fermion_basis, solve, solver_name
 
-include("embedding/EmbeddingTypes.jl")
-include("embedding/BathDiscretization.jl")
-include("embedding/ImpurityProblems.jl")
-include("embedding/BathFitting.jl")
-include("embedding/ImpuritySolver.jl")
-include("embedding/EDImpuritySectors.jl")
-include("embedding/EDImpuritySolver.jl")
-include("embedding/LatticeGreenFunctions.jl")
-include("embedding/SelfConsistency.jl")
-include("embedding/Mixing.jl")
-include("embedding/DMFT.jl")
-include("embedding/diagrammatic/DiagrammaticDMFT.jl")
-include("embedding/Validation.jl")
+include("embedding/impurity/Types.jl")
+include("embedding/dmft/BathFitting.jl")
+include("embedding/dmft/MatrixBathFitting.jl")
+include("embedding/impurity/ScalarED.jl")
+include("embedding/impurity/MultiOrbitalED.jl")
+include("embedding/impurity/TwoParticle.jl")
+include("embedding/impurity/Lehmann.jl")
+include("embedding/dmft/LatticeIntegration.jl")
+include("embedding/dmft/Mixing.jl")
+include("embedding/dmft/DMFT.jl")
+include("embedding/dga/MomentumLattice.jl")
+include("embedding/dmft/MatrixDMFT.jl")
+include("embedding/dga/DiagrammaticDMFT.jl")
+include("embedding/dga/LatticeLadders.jl")
+include("embedding/dga/SchwingerDyson.jl")
+include("embedding/dga/Crossing.jl")
+include("embedding/dga/EquationsOfMotion.jl")
+include("embedding/dga/Workflow.jl")
+include("embedding/dga/FrequencyControl.jl")
+include("embedding/dmft/Validation.jl")
 
 export AbstractEmbeddingProblem,
        AbstractLatticeEmbedding,
        ImpuritySolverResult,
        DiscreteBath,
+       MatrixDiscreteBath,
        hybridization_function,
+       hybridization_moment,
        ImpurityProblem,
+       MultiOrbitalImpurityProblem,
+       MultiOrbitalAndersonHamiltonian,
+       anderson_hamiltonian,
+       SpinOrbitalInteraction,
+       kanamori_interaction,
+       impurity_one_body_matrix,
+       noninteracting_impurity_green,
        BathFitOptions,
        BathFitResult,
+       MatrixBathFitResult,
        fit_bath,
+       fit_matrix_bath,
        AbstractImpuritySolver,
        EDImpuritySolver,
+       MultiOrbitalEDSolver,
+       MultiOrbitalEDThermalState,
+       MultiOrbitalEDResult,
+       multiorbital_ed_state,
+       multiorbital_impurity_green,
+       OrbitalPairSusceptibility,
+       MultiOrbitalImpurityTwoParticleResult,
+       OrbitalPairIrreducibleVertex,
+       multiorbital_impurity_two_particle,
+       multiorbital_two_particle_residual,
+       orbital_pair_block,
+       project_orbital_channel,
+       multiorbital_irreducible_vertex,
+       OrbitalLadderResult,
+       orbital_pair_lattice_bubble,
+       multiorbital_ladder_susceptibility,
+       OrbitalMomentumSelfEnergy,
+       orbital_hartree_fock,
+       orbital_full_vertex,
+       OrbitalSchwingerDysonKernel,
+       orbital_schwinger_dyson,
+       validate_orbital_schwinger_dyson,
+       screened_orbital_ladder_kernel,
+       OrbitalScreenedLadderProblem,
+       OrbitalScreenedLadderSolver,
+       OrbitalScreenedLadderResult,
+       expanded_dmft_momentum_green,
+       OrbitalSpinLadderChannels,
+       orbital_spin_ladders,
+       orbital_crossed_vertex,
+       orbital_crossing_coverage,
+       orbital_impurity_spin_channels,
+       OrbitalCrossingCore,
+       orbital_core_crossed_vertex,
+       orbital_impurity_equation_of_motion,
+       OrbitalDiagrammaticEOMProblem,
+       orbital_diagrammatic_self_energy,
+       orbital_eom_frequency_box_comparison,
+       orbital_spin_orbital_crossed_vertex,
+       orbital_channel_ladder_self_energy,
+       OrbitalLadderWorkflowProblem,
+       OrbitalLadderWorkflowSolver,
+       OrbitalLadderWorkflowResult,
+       orbital_ladder_expanded_green,
+       orbital_ladder_support_convergence,
+       OrbitalLehmannMoments,
+       orbital_impurity_lehmann_moments,
+       orbital_impurity_lehmann_tail,
+       OrbitalLadderConvergenceReport,
+       orbital_ladder_convergence_study,
+       OrbitalBilinearLehmann,
+       OrbitalBilinearMoments,
+       orbital_bilinear_lehmann,
+       orbital_bilinear_susceptibility,
+       orbital_bilinear_moments,
+       orbital_bilinear_tail,
+       orbital_bilinear_spin_channels,
+       orbital_su2_symmetry,
        AtomicLattice,
        DiscreteLattice,
        BetheLattice,
@@ -1134,6 +1209,10 @@ export AbstractEmbeddingProblem,
        DMFTIteration,
        DMFTSolver,
        DMFTResult,
+       MultiOrbitalDMFTProblem,
+       MultiOrbitalDMFTSolver,
+       MultiOrbitalDMFTResult,
+       MultiOrbitalDMFTIteration,
        AbstractDiagrammaticDMFTMethod,
        LadderDGA,
        MomentumLattice,
@@ -1569,14 +1648,16 @@ using .Greens
 using .Embedding
 
 include("forward/ForwardMethodContexts.jl")
-include("embedding/GeometricEmbedding.jl")
+include("embedding/dmft/GeometricEmbedding.jl")
 include("greens/AnalyticContinuation.jl")
-include("forward/ResultCapabilities.jl")
-include("forward/ForwardCapabilityContracts.jl")
-include("forward/ForwardCapabilities.jl")
+include("forward/capabilities/ResultCapabilities.jl")
+include("forward/capabilities/ForwardCapabilityContracts.jl")
+include("forward/capabilities/ForwardCapabilities.jl")
 include("forward/ForwardProblems.jl")
-include("forward/StructuralClusterForward.jl")
-include("forward/ExtendedForward.jl")
+include("forward/structural/StructuralClusterForward.jl")
+include("embedding/nlce/FermionicClusters.jl")
+include("forward/RequestSpecificForward.jl")
+include("forward/electronic/OrbitalEmbeddingForward.jl")
 include("forward/ForwardPlanning.jl")
 
 # =============================================================================
@@ -1729,7 +1810,7 @@ function forward(
 end
 
 
-include("forward/StructuralForward.jl")
+include("forward/structural/StructuralForward.jl")
 
 # =============================================================================
 # 12. Public exports
@@ -1746,6 +1827,11 @@ export ThermodynamicForwardSolver,
        matrix_bravais_momentum_lattice,
        StructuralNLCEForwardContext,
        regenerate_induced_spin_cluster,
+       FermionicClusterDecomposition,
+       certify_fermionic_clusters,
+       regenerate_induced_fermion_cluster,
+       fermionic_nlce_problem,
+       FermionicNLCEForwardContext,
        PhundamentalCore,
        Foundation,
        Algebra,
@@ -2450,13 +2536,82 @@ export AbstractFrequencyAxis,
        AbstractLatticeEmbedding,
        ImpuritySolverResult,
        DiscreteBath,
+       MatrixDiscreteBath,
        hybridization_function,
+       hybridization_moment,
        ImpurityProblem,
+       MultiOrbitalImpurityProblem,
+       MultiOrbitalAndersonHamiltonian,
+       anderson_hamiltonian,
+       SpinOrbitalInteraction,
+       kanamori_interaction,
+       impurity_one_body_matrix,
+       noninteracting_impurity_green,
        BathFitOptions,
        BathFitResult,
+       MatrixBathFitResult,
        fit_bath,
+       fit_matrix_bath,
        AbstractImpuritySolver,
        EDImpuritySolver,
+       MultiOrbitalEDSolver,
+       MultiOrbitalEDThermalState,
+       MultiOrbitalEDResult,
+       multiorbital_ed_state,
+       multiorbital_impurity_green,
+       OrbitalPairSusceptibility,
+       MultiOrbitalImpurityTwoParticleResult,
+       OrbitalPairIrreducibleVertex,
+       multiorbital_impurity_two_particle,
+       multiorbital_two_particle_residual,
+       orbital_pair_block,
+       project_orbital_channel,
+       multiorbital_irreducible_vertex,
+       OrbitalLadderResult,
+       orbital_pair_lattice_bubble,
+       multiorbital_ladder_susceptibility,
+       OrbitalMomentumSelfEnergy,
+       orbital_hartree_fock,
+       orbital_full_vertex,
+       OrbitalSchwingerDysonKernel,
+       orbital_schwinger_dyson,
+       validate_orbital_schwinger_dyson,
+       screened_orbital_ladder_kernel,
+       OrbitalScreenedLadderProblem,
+       OrbitalScreenedLadderSolver,
+       OrbitalScreenedLadderResult,
+       expanded_dmft_momentum_green,
+       OrbitalSpinLadderChannels,
+       orbital_spin_ladders,
+       orbital_crossed_vertex,
+       orbital_crossing_coverage,
+       orbital_impurity_spin_channels,
+       OrbitalCrossingCore,
+       orbital_core_crossed_vertex,
+       orbital_impurity_equation_of_motion,
+       OrbitalDiagrammaticEOMProblem,
+       orbital_diagrammatic_self_energy,
+       orbital_eom_frequency_box_comparison,
+       orbital_spin_orbital_crossed_vertex,
+       orbital_channel_ladder_self_energy,
+       OrbitalLadderWorkflowProblem,
+       OrbitalLadderWorkflowSolver,
+       OrbitalLadderWorkflowResult,
+       orbital_ladder_expanded_green,
+       orbital_ladder_support_convergence,
+       OrbitalLehmannMoments,
+       orbital_impurity_lehmann_moments,
+       orbital_impurity_lehmann_tail,
+       OrbitalLadderConvergenceReport,
+       orbital_ladder_convergence_study,
+       OrbitalBilinearLehmann,
+       OrbitalBilinearMoments,
+       orbital_bilinear_lehmann,
+       orbital_bilinear_susceptibility,
+       orbital_bilinear_moments,
+       orbital_bilinear_tail,
+       orbital_bilinear_spin_channels,
+       orbital_su2_symmetry,
        AtomicLattice,
        DiscreteLattice,
        BetheLattice,
@@ -2473,6 +2628,10 @@ export AbstractFrequencyAxis,
        DMFTIteration,
        DMFTSolver,
        DMFTResult,
+       MultiOrbitalDMFTProblem,
+       MultiOrbitalDMFTSolver,
+       MultiOrbitalDMFTResult,
+       MultiOrbitalDMFTIteration,
        AbstractDiagrammaticDMFTMethod,
        LadderDGA,
        MomentumLattice,
@@ -2548,6 +2707,10 @@ export ForwardProblem,
        forward_batch,
        AbstractForwardMethodContext,
        DMFTForwardContext,
+       MultiOrbitalDMFTForwardContext,
+       OrbitalScreenedLadderForwardContext,
+       OrbitalLadderWorkflowForwardContext,
+       MomentumMatsubaraSelfEnergyRequest,
        LadderDGAForwardContext,
        NLCEForwardContext,
        forward,

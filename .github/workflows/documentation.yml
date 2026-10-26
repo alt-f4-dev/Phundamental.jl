@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: phundamental-development-gh-pages
-  cancel-in-progress: false
+    group: phundamental-documentation-gh-pages
+    cancel-in-progress: false
 
 jobs:
   build:

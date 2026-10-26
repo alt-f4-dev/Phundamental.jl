@@ -77,11 +77,10 @@ end
             MSD.groundenergy(MSD.solve(MSD.ExactDiagonalization(), f.model)); atol=1e-10)
         context = MSD.StructuralNLCEForwardContext(f.selection, 2; bonds=[intrabond, wrapped], bond_terms=terms,
             allow_periodic_reference=true)
-        @test MSD.solver_compatibility(MSD.NLCESolver(), f.model, request, context).compatible
-        result = MSD.forward(MSD.ForwardProblem(f.model; solver=MSD.NLCESolver(), method_context=context, observable=request))
-        @test all(bond -> bond.displacement ≈ [0.4, 0.0, 0.0], only(c.bonds for c in result.solution.clusters if c.order == 2))
-        @test isapprox(result.observable_result,
-            MSD.groundenergy(MSD.solve(MSD.ExactDiagonalization(), open_model)) / 2; atol=1e-10)
+        # No translated interior representative of the wrapped bond exists in a one-cell reference.
+        @test !MSD.solver_compatibility(MSD.NLCESolver(), f.model, request, context).compatible
+        @test_throws ArgumentError MSD.forward(MSD.ForwardProblem(f.model; solver=MSD.NLCESolver(),
+            method_context=context, observable=request))
     end
 
     @testset "F1: enlarged reference recovers distinct open intrabond and interbond energies" begin
@@ -128,8 +127,10 @@ end
                 expected = MSD.groundenergy(MSD.solve(MSD.ExactDiagonalization(), independent))
                 @test isapprox(result.solution.raw_values[cluster.key], expected; atol=1e-10)
             end
-            expected_bulk = -(ncells * J1 + (ncells - 1) * J2) / (8 * ncells)
+            expected_bulk = -(J1 + J2) / 8
             @test isapprox(result.observable_result, expected_bulk; atol=1e-10)
+            @test result.solution.metadata[:translation_embedding_corrected]
+            @test result.solution.metadata[:infinite_lattice_claim]
         end
     end
 

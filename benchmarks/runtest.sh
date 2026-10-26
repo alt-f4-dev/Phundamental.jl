@@ -80,6 +80,25 @@ export PHUNDAMENTAL_CPT_OMEGA_POINTS="${PHUNDAMENTAL_CPT_OMEGA_POINTS:-481}"
 export PHUNDAMENTAL_CPT_ETA="${PHUNDAMENTAL_CPT_ETA:-0.03}"
 export PHUNDAMENTAL_CPT_PARALLEL="${PHUNDAMENTAL_CPT_PARALLEL:-true}"
 
+
+#-------------------------#
+# Experimental Resolution #
+#-------------------------#
+export PHUNDAMENTAL_QE_PROFILE=tof
+export PHUNDAMENTAL_QE_THREADED=true
+export PHUNDAMENTAL_QE_OUTPUT=results/experimental-resolution/threaded-scaling.csv
+
+
+#----------------#
+# BLAS Threading # Set to 1 thread -> Julia threading only
+#----------------#
+export OPENBLAS_NUM_THREADS=1
+
+
+#-----------------------#
+# Begin Benchmark Suite #
+#-----------------------#
+
 echo ""
 echo "|-------------------------------------|"
 echo "|                                     |"
@@ -114,3 +133,12 @@ echo ""
 run_benchmark "structural-search-scaling-benchmark.jl"
 
 
+
+echo ""
+echo "|-------------------------------------|"
+echo "|                                     |"
+echo "|   Experimental Resolution Scaling   |"
+echo "|                                     |"
+echo "|-------------------------------------|"
+echo ""
+run_benchmark "experimental-resolution-scaling.jl"

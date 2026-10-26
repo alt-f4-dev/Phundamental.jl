@@ -55,7 +55,7 @@ end
 TopologicalExpansion(clusters, metadata::AbstractDict) = TopologicalExpansion(clusters; metadata=Dict{Symbol,Any}(metadata))
 
 """Generic NLCE problem for the existing material/reference/model construction pipeline."""
-struct NLCEProblem{M,R,S,E,B,T,MB}
+struct NLCEProblem{M,R,S,E,B,T,MB,F}
     material::M
     reference::R
     specification::S
@@ -67,15 +67,16 @@ struct NLCEProblem{M,R,S,E,B,T,MB}
     model_transform::T
     model_builder::MB
     allow_periodic_reference::Bool
+    embedding_factor::F
 end
 
 function NLCEProblem(material::Material, reference::Supercell, specification::AbstractHamiltonianSpec, evaluator;
                      max_order::Integer, bonds=nothing, min_order::Integer=1, max_clusters::Integer=100_000,
-                     model_transform=nothing, model_builder=nothing, allow_periodic_reference::Bool=false)
+                     model_transform=nothing, model_builder=nothing, allow_periodic_reference::Bool=false, embedding_factor=nothing)
     1 <= min_order <= max_order || throw(ArgumentError("require 1 <= min_order <= max_order"))
     max_clusters > 0 || throw(ArgumentError("max_clusters must be positive"))
     return NLCEProblem(material, reference, specification, evaluator, Int(max_order), bonds, Int(min_order), Int(max_clusters),
-                       model_transform, model_builder, allow_periodic_reference)
+                       model_transform, model_builder, allow_periodic_reference, embedding_factor)
 end
 
 """Solver descriptor for finite-reference NLCE reconstruction."""
@@ -157,14 +158,16 @@ function linked_cluster_values(raw_values::AbstractDict, clusters)
     return weights
 end
 
-function _finite_reference_partial_sums(weights, clusters, max_order::Int, reference_sites::Int, normalize_per_site::Bool)
+function _finite_reference_partial_sums(weights, clusters, max_order::Int, reference_sites::Int, normalize_per_site::Bool; embedding_factor=nothing)
     partial = Vector{Any}(undef, max_order)
     current = nothing
     normalization = normalize_per_site ? inv(reference_sites) : 1.0
     for order in 1:max_order
         for cluster in clusters
             _cluster_order(cluster) == order || continue
-            term = _linked_scale(weights[_cluster_key(cluster)], normalization)
+            factor = isnothing(embedding_factor) ? 1.0 : embedding_factor(cluster)
+            isfinite(factor) && factor > 0 || throw(ArgumentError("NLCE embedding factors must be finite and positive"))
+            term = _linked_scale(weights[_cluster_key(cluster)], normalization * factor)
             current = isnothing(current) ? _linked_copy(term) : _linked_add(current, term)
         end
         isnothing(current) && throw(ArgumentError("no linked-cluster contribution exists through order $order"))
@@ -249,7 +252,7 @@ function solve(solver::NLCESolver, problem::NLCEProblem)
         raw[cluster.key] = problem.evaluator(working, cluster, index)
     end
     weights = linked_cluster_values(raw, clusters)
-    partial = _finite_reference_partial_sums(weights, clusters, problem.max_order, nsites(problem.reference), solver.normalize_per_site)
+    partial = _finite_reference_partial_sums(weights, clusters, problem.max_order, nsites(problem.reference), solver.normalize_per_site; embedding_factor=problem.embedding_factor)
     convergence = _order_convergence(partial)
     metadata = Dict{Symbol,Any}(
         :method => :finite_reference_nlce,
@@ -258,8 +261,9 @@ function solve(solver::NLCESolver, problem::NLCEProblem)
         :cluster_count => length(clusters),
         :reference_sites => nsites(problem.reference),
         :per_site_normalization => solver.normalize_per_site,
-        :infinite_lattice_claim => false,
-        :interpretation => :convergence_before_reference_boundary_required,
+        :infinite_lattice_claim => !isnothing(problem.embedding_factor),
+        :translation_embedding_corrected => !isnothing(problem.embedding_factor),
+        :interpretation => isnothing(problem.embedding_factor) ? :convergence_before_reference_boundary_required : :certified_periodic_translations_through_max_order,
     )
     return NLCEResult(clusters, raw, weights, partial, convergence, metadata)
 end

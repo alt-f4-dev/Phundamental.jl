@@ -10,6 +10,10 @@ $$\text{intrinsic observable}\rightarrow\text{probe contraction}\rightarrow\text
 
 An intrinsic dynamic structure factor is not the same object as a neutron cross section, and numerical line broadening is not the same operation as convolution with an experimental resolution function. The API keeps those stages distinct so each can be inspected and validated independently.
 
+## Implementation organization
+
+The source tree groups typed requests in `requests/`, intrinsic correlations in `correlations/`, spectral calculations and response conversions in `spectra/`, structure factors and neutron probe contractions in `scattering/`, and instrument response in `resolution/`. The common types, ensemble utilities, and validation functions remain at the `observables/` root. This organization does not change the `Phundamental.Observables` API or introduce nested modules.
+
 ## Observable descriptors and registries
 
 `AbstractObservable` is the root observable abstraction and `AbstractCorrelationObservable` identifies correlation-based quantities. `ObservableRef` addresses a symbolic operator stored in `model.observables`.

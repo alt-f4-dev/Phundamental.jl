@@ -59,7 +59,10 @@ const DOCUMENTATION_PAGES = [
         "Solver Capability Extensions" => "workflows/capability-extension-and-module-layout.md",
         "Representation Transformations" => "workflows/representation-transformations.md",
         "Scattering" => "workflows/scattering.md",
-        "ED-DMFT" => "workflows/ed-dmft.md",
+        "Impurity Models and Local Response" => "embedding/impurity.md",
+        "Scalar and Matrix DMFT" => "embedding/dmft.md",
+        "Diagrammatic Extensions" => "embedding/dga.md",
+        "Fermionic Linked Clusters" => "embedding/nlce.md",
     ],
     "Validation" => "validation.md",
 ]

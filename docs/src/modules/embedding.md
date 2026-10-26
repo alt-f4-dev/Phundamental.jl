@@ -4,7 +4,7 @@ CurrentModule = Phundamental.Embedding
 
 # Embedding
 
-`Phundamental.Embedding` implements the first self-consistent many-body embedding layer in Phundamental.jl: normal-state, single-site, single-orbital dynamical mean-field theory (DMFT) with a finite exact-diagonalization impurity bath. The implementation is built directly on the typed Green-function objects in [Greens](greens.md), the Hamiltonian models in [Models](models.md), finite-temperature states in [Thermodynamics](thermodynamics.md), and the solver protocol in [Solvers](solvers.md).
+`Phundamental.Embedding` contains the existing normal-state scalar and matrix-valued ED-DMFT methods, finite-temperature impurity solvers, and orbital-resolved diagrammatic methods. The scalar single-site, single-orbital DMFT implementation remains supported. The implementation is built directly on the typed Green-function objects in [Greens](greens.md), the Hamiltonian models in [Models](models.md), finite-temperature states in [Thermodynamics](thermodynamics.md), and the solver protocol in [Solvers](solvers.md).
 
 The validated normal-state ED-DMFT loop is
 
@@ -14,7 +14,7 @@ The embedding layer keeps the lattice problem, Weiss field, bath discretization,
 
 ## Validated implementation scope
 
-The validated implementation assumes a scalar local self-energy, one correlated impurity orbital, spin-degenerate paramagnetic normal-state ED, and single-site self-consistency. The Green-function layer is matrix-valued and supports Nambu indexing, but superconducting/Nambu DMFT is not part of the validated embedding scope.
+The scalar ED-DMFT implementation assumes a scalar local self-energy, one correlated impurity orbital, spin-degenerate paramagnetic normal-state ED, and single-site self-consistency. Independently validated matrix-valued and orbital-resolved capabilities retain their explicitly documented restrictions; their presence does not imply that the full multiorbital parquet/DΓA self-energy or analytic continuation is certified. The Green-function layer is matrix-valued and supports Nambu indexing, but superconducting/Nambu DMFT is not part of the validated embedding scope.
 
 The package does not perform analytic continuation as part of the DMFT fixed-point loop. Matsubara convergence and real-frequency continuation are different numerical problems and remain separated.
 
@@ -249,7 +249,7 @@ A CT-QMC comparison, discussed in the finite-temperature ED literature, is not i
 - [Models](models.md) supplies `AndersonImpurityModel`.
 - [Thermodynamics](thermodynamics.md) supplies exact finite-temperature impurity states.
 - [Solvers](solvers.md) supplies dense reference ED and the common solver protocol.
-- [ED-DMFT Workflow](../workflows/ed-dmft.md) gives an end-to-end construction and interpretation guide.
+- [ED-DMFT Workflow](../embedding/dmft.md) gives an end-to-end construction and interpretation guide.
 - [Validation](../validation.md) places the DMFT benchmarks in the package-wide validation hierarchy.
 
 ## API reference
@@ -426,3 +426,10 @@ A Bravais hopping set can be compiled into the existing `MomentumLattice` and it
 ## Explicit matrix-valued momentum embeddings
 
 `MatrixMomentumLattice`, `OrbitalBravaisHopping`, and `matrix_bravais_momentum_lattice` represent explicitly supplied orbital Hamiltonian matrices and directional hopping matrices without assuming that a generated many-body model has already been reduced to a unique one-particle Bloch Hamiltonian. The `ManyBodyModel` overload certifies exact finite-reference reconstruction from caller-declared image-resolved hoppings before accepting the mapping. These objects support matrix Dyson evaluation and weighted local propagators, not the scalar ED-DMFT fixed-point solver.
+
+## Embedding workflows by responsibility
+
+- [Impurity models, finite-bath ED, and local two-particle response](../embedding/impurity.md)
+- [Scalar and matrix DMFT](../embedding/dmft.md)
+- [Diagrammatic extensions, orbital channels, and ladder workflows](../embedding/dga.md)
+- [Fermionic linked-cluster workflows](../embedding/nlce.md)

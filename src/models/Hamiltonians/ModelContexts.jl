@@ -43,26 +43,43 @@ function generation_context(result::HamiltonianGenerationResult, algebra::Abstra
     return PhysicalModelContext(result.material, result.cluster, result.dataset, geometry)
 end
 
-function _fermionic_site_observables!(registry::Dict{Symbol,Any}, geometry::GeometryContext)
+function _fermionic_site_observables!(registry::Dict{Symbol,Any}, geometry::GeometryContext; hbar::Real=1.0)
+    isfinite(hbar) && hbar > 0 || throw(ArgumentError("generated fermionic spin observables require finite positive hbar"))
     norbitals = geometry.component_layout.norbitals
     for site in eachindex(geometry.positions)
         density_terms = AbstractOperatorExpr[]
+        double_terms = AbstractOperatorExpr[]
         sx_terms = AbstractOperatorExpr[]
         sy_terms = AbstractOperatorExpr[]
         sz_terms = AbstractOperatorExpr[]
         for orbital in 1:norbitals
             up = component_index(geometry, site, orbital, 1)
             down = component_index(geometry, site, orbital, 2)
-            push!(density_terms, nf(up), nf(down))
-            push!(sx_terms, 0.5 * (c(up)' * c(down) + c(down)' * c(up)))
-            push!(sy_terms, (c(up)' * c(down) - c(down)' * c(up)) / (2im))
-            push!(sz_terms, 0.5 * (nf(up) - nf(down)))
-            registry[Symbol("fermion_density_", site, "_", orbital)] = nf(up) + nf(down)
+            density = nf(up) + nf(down)
+            double_occupancy = nf(up) * nf(down)
+            push!(density_terms, density)
+            push!(double_terms, double_occupancy)
+            push!(sx_terms, (hbar / 2) * (c(up)' * c(down) + c(down)' * c(up)))
+            push!(sy_terms, (hbar / (2im)) * (c(up)' * c(down) - c(down)' * c(up)))
+            push!(sz_terms, (hbar / 2) * (nf(up) - nf(down)))
+            registry[Symbol("fermion_density_", site, "_", orbital)] = density
+            registry[Symbol("fermion_double_occupancy_", site, "_", orbital)] = double_occupancy
         end
-        registry[Symbol("fermion_density_", site)] = OperatorSum(density_terms)
-        registry[Symbol("fermion_spin_x_", site)] = OperatorSum(sx_terms)
-        registry[Symbol("fermion_spin_y_", site)] = OperatorSum(sy_terms)
-        registry[Symbol("fermion_spin_z_", site)] = OperatorSum(sz_terms)
+        density = OperatorSum(density_terms)
+        double_occupancy = OperatorSum(double_terms)
+        spin_x = OperatorSum(sx_terms)
+        spin_y = OperatorSum(sy_terms)
+        spin_z = OperatorSum(sz_terms)
+        registry[Symbol("fermion_density_", site)] = density
+        registry[Symbol("fermion_double_occupancy_", site)] = double_occupancy
+        registry[Symbol("fermion_spin_x_", site)] = spin_x
+        registry[Symbol("fermion_spin_y_", site)] = spin_y
+        registry[Symbol("fermion_spin_z_", site)] = spin_z
+        registry[Symbol("density_", site)] = density
+        registry[Symbol("double_occupancy_", site)] = double_occupancy
+        registry[Symbol("spin_x_", site)] = spin_x
+        registry[Symbol("spin_y_", site)] = spin_y
+        registry[Symbol("spin_z_", site)] = spin_z
     end
     return registry
 end
@@ -77,7 +94,7 @@ function _vector_site_observables!(registry::Dict{Symbol,Any}, geometry::Geometr
 end
 
 """Build physical-site observables only for certified spin, spinful-fermion, and Cartesian-vector layouts."""
-function _generated_observables(algebra::AbstractOperatorAlgebra, context::PhysicalModelContext)
+function _generated_observables(algebra::AbstractOperatorAlgebra, context::PhysicalModelContext; hbar::Real=1.0)
     registry = Dict{Symbol,Any}()
     geometry = context.geometry
     isnothing(geometry) && return registry
@@ -88,7 +105,7 @@ function _generated_observables(algebra::AbstractOperatorAlgebra, context::Physi
             registry[Symbol("spin_z_", site)] = Sz(site)
         end
     elseif algebra isa FermionAlgebra && !isnothing(geometry.component_layout) && geometry.component_layout.kind === :spinful_fermion
-        _fermionic_site_observables!(registry, geometry)
+        _fermionic_site_observables!(registry, geometry; hbar=hbar)
     elseif algebra isa CoordinateMomentumAlgebra && !isnothing(geometry.component_layout) && geometry.component_layout.kind === :cartesian_vector
         _vector_site_observables!(registry, geometry)
     end
@@ -167,7 +184,9 @@ function default_observable_context(result::HamiltonianGenerationResult, represe
                 throw(DimensionMismatch("coordinate representation must match the certified Cartesian displacement modes"))
         end
     end
-    registry = _generated_observables(representation.algebra, context)
+    hbar = get(metadata_parameters, :hbar, 1.0)
+    hbar isa Real && isfinite(hbar) && hbar > 0 || throw(ArgumentError("hbar must be finite, real, and positive"))
+    registry = _generated_observables(representation.algebra, context; hbar=hbar)
     for (name, operator) in provided
         haskey(registry, name) && !isequal(registry[name], operator) &&
             throw(ArgumentError("observable :$name disagrees with the certified generated registry"))

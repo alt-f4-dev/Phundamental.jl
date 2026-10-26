@@ -164,7 +164,17 @@ end
         @test MSB.observable_context(selected_f).convention === :fermion_site_orbital_spin
         @test MSB.geometry_context(selected_f).positions == f_geometry.positions
         @test MSB.geometry_context(model_f).positions == f_geometry.positions
-        @test length(model_f.observables) == 12
+        @test length(model_f.observables) == 28
+        for site in 1:2, name in ("density", "double_occupancy", "spin_x", "spin_y", "spin_z")
+            alias = Symbol(name, "_", site)
+            canonical = Symbol("fermion_", name, "_", site)
+            @test haskey(model_f.observables, alias)
+            @test haskey(model_f.observables, canonical)
+            @test _msb_zero(model_f.observables[alias] - model_f.observables[canonical], fermions)
+        end
+        for site in 1:2, orbital in 1:2
+            @test haskey(model_f.observables, Symbol("fermion_double_occupancy_", site, "_", orbital))
+        end
         @test model_f.parameters[:positions] == f_geometry.positions
         density_site2 = MSB.nf(5) + MSB.nf(6) + MSB.nf(7) + MSB.nf(8)
         @test _msb_zero(model_f.observables[:fermion_density_2] - density_site2, fermions)

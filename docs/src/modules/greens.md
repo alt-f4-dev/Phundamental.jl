@@ -159,7 +159,7 @@ The recorded regression tests validate the Green layer against exact atomic Hubb
 - [Thermodynamics](thermodynamics.md) supplies the `ExactGibbsState` used by exact finite-temperature Lehmann evaluation.
 - [Solvers](solvers.md) supplies the eigensystem and matrix realization used to evaluate operator matrix elements.
 - [Embedding](embedding.md) uses `GreenFunction`, `NonInteractingGreenFunction`, `SelfEnergy`, and `HybridizationFunction` as the typed objects in the DMFT loop.
-- [ED-DMFT Workflow](../workflows/ed-dmft.md) shows how these objects compose in self-consistency.
+- [ED-DMFT Workflow](../embedding/dmft.md) shows how these objects compose in self-consistency.
 
 ## API reference
 

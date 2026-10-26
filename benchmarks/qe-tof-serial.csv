@@ -1,0 +1,13 @@
+status,dimension,nQ,nE,density,covariance_kind,threaded,predicted,nonzero,construction_s,construction_alloc,resolution_mib,convolution_s,convolution_alloc,output_mib,rss_mib,rss_peak_mib,dense_abs,dense_rel,brute_abs,brute_rel
+SKIP,2,10000,200,sparse,constant,false,5.852903225806451e8,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+SKIP,2,10000,200,sparse,varying,false,5.852903225806451e8,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+SKIP,2,10000,200,dense,constant,false,1.8143999999999996e10,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+SKIP,2,10000,200,dense,varying,false,1.8143999999999996e10,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+OK,3,10000,200,sparse,constant,false,1.053522580645161e8,64516,0.003718168,2.3263626098632812,0.6122798919677734,0.301129257,300.95433044433594,15.258834838867188,507.59375,507.59375,NaN,NaN,NaN,NaN
+OK,3,10000,200,sparse,varying,false,1.053522580645161e8,64516,0.00350585,2.3263931274414062,0.6123790740966797,0.417636507,368.87757110595703,15.258834838867188,514.98046875,516.8203125,NaN,NaN,NaN,NaN
+SKIP,3,10000,200,dense,constant,false,3.265919999999999e9,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+SKIP,3,10000,200,dense,varying,false,3.265919999999999e9,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+SKIP,3,100000,290,sparse,constant,false,2.215031225806451e10,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+SKIP,3,100000,290,sparse,varying,false,2.215031225806451e10,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+SKIP,3,100000,290,dense,constant,false,6.866596799999999e11,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN
+SKIP,3,100000,290,dense,varying,false,6.866596799999999e11,0,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN

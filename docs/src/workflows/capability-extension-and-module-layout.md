@@ -20,7 +20,7 @@ Phundamental.solver_output_family(::ExampleSolver, ::ManyBodyModel) = :eigensyst
 
 An extension should report `certified=false` when an essential property can only be tested during execution. The planner's default `require_certified=true` policy is retained; new solver candidates are not globally registered or automatically selected without an explicit `ForwardRoute`. An approximation-bearing solver must implement `solver_approximation` and requires caller authorization through `ForwardExecutionPolicy`.
 
-The built-in numerical capability rules are grouped in `src/forward/BuiltinSolverCapabilities.jl`. The public extension hook contracts are declared in `src/ForwardCapabilityContracts.jl`, while `src/ForwardCapabilities.jl` retains request-family dispatch and the compatibility composition layer. Existing private underscore-prefixed hooks remain functional for legacy extensions but are not the recommended external contract.
+The built-in numerical capability rules are grouped in `src/forward/capabilities/BuiltinSolverCapabilities.jl`. The public extension hook contracts are declared in `src/forward/capabilities/ForwardCapabilityContracts.jl`, while `src/forward/capabilities/ForwardCapabilities.jl` retains request-family dispatch and the compatibility composition layer. Existing private underscore-prefixed hooks remain functional for legacy extensions but are not the recommended external contract.
 
 ## Typed compatibility diagnostics
 
@@ -28,7 +28,7 @@ The existing `SolverCompatibility.reasons` strings remain available. `compatibil
 
 ## Retired wrappers
 
-The package's authoritative `PhundamentalCore`, `Algebra`, `Crystallography`, `Transformations`, `Solvers`, `Observables`, `Models`, and `Thermodynamics` modules are assembled directly by `src/Phundamental.jl`. Seven obsolete directory-local module wrappers had no inclusion or import sites in the v0.1.7 source/test/documentation tree and retained stale dependencies such as `..Core`. Milestone E removes those unused wrapper files without changing root exports or the public module objects. Direct inclusion of those wrappers was not a supported package entry point and should be replaced with `using Phundamental` or a documented submodule import.
+The package's authoritative `PhundamentalCore`, `Algebra`, `Crystallography`, `Transformations`, `Solvers`, `Observables`, `Models`, and `Thermodynamics` modules are assembled directly by `src/Phundamental.jl`. Seven obsolete directory-local module wrappers had no inclusion or import sites in the v0.1.0 source/test/documentation tree and retained stale dependencies such as `..Core`. Milestone E removes those unused wrapper files without changing root exports or the public module objects. Direct inclusion of those wrappers was not a supported package entry point and should be replaced with `using Phundamental` or a documented submodule import.
 
 ## Capability limits
 

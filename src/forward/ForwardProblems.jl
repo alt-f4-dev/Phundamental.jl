@@ -123,7 +123,27 @@ end
 function _nlce_additive_observable(value)
     value isa Number && return value
     value isa AbstractArray && return copy(value)
-    throw(ArgumentError("the Batch 5 NLCE forward route requires each cluster observable to be a Number or AbstractArray; got $(typeof(value))"))
+    throw(ArgumentError("NLCE requires an additive scalar, array, ThermodynamicCurve, or MagneticResponseCurve; got $(typeof(value))"))
+end
+
+# Return extensive channels in fixed column order; the linked-cluster algorithm acts on values, not presentation metadata.
+function _nlce_additive_observable(curve::ThermodynamicCurve)
+    size = length(curve.temperatures)
+    all(length(values) == size for values in (curve.free_energy, curve.internal_energy, curve.entropy, curve.heat_capacity)) ||
+        throw(DimensionMismatch("thermodynamic channels must share one temperature grid"))
+    return hcat(curve.free_energy, curve.internal_energy, curve.entropy, curve.heat_capacity)
+end
+
+_nlce_additive_observable(curve::MagneticResponseCurve) = copy(curve.values)
+
+function _nlce_cluster_evaluator(observable::Observables.AbstractObservable, context::NLCEForwardContext)
+    return function(cluster_model, cluster, cluster_index)
+        cluster_metadata = Dict{Symbol,Any}(:nlce_cluster_key => cluster.key, :nlce_cluster_order => cluster.order, :nlce_cluster_index => cluster_index)
+        cluster_problem = ForwardProblem(cluster_model; transformation=context.inner_transformation, solver=context.inner_solver,
+                                         solver_args=context.inner_solver_args, solver_kwargs=context.inner_solver_kwargs,
+                                         method_context=context.inner_method_context, observable=observable, metadata=cluster_metadata)
+        return _nlce_additive_observable(forward(cluster_problem).observable_result)
+    end
 end
 
 function _prepare_solver_input(::NLCESolver, model::ManyBodyModel, observable::Observables.ObservableRequest, args::Tuple,
@@ -131,14 +151,7 @@ function _prepare_solver_input(::NLCESolver, model::ManyBodyModel, observable::O
     isempty(args) || throw(ArgumentError("high-level NLCE lowering constructs NLCEProblem from method_context; solver_args must be empty"))
     isempty(kwargs) || throw(ArgumentError("NLCESolver is configured by the solver object; solver_kwargs must be empty for the high-level NLCE route"))
     components = _nlce_forward_model_components(model)
-    evaluator = function(cluster_model, cluster, cluster_index)
-        cluster_metadata = Dict{Symbol,Any}(:nlce_cluster_key => cluster.key, :nlce_cluster_order => cluster.order, :nlce_cluster_index => cluster_index)
-        cluster_problem = ForwardProblem(cluster_model; transformation=context.inner_transformation, solver=context.inner_solver,
-                                         solver_args=context.inner_solver_args, solver_kwargs=context.inner_solver_kwargs,
-                                         method_context=context.inner_method_context, observable=observable, metadata=cluster_metadata)
-        cluster_result = forward(cluster_problem)
-        return _nlce_additive_observable(cluster_result.observable_result)
-    end
+    evaluator = _nlce_cluster_evaluator(observable, context)
     bonds = isnothing(context.bonds) ? get(model.parameters, :bonds, nothing) : context.bonds
     problem = NLCEProblem(components.material, components.reference, components.specification, evaluator; max_order=context.max_order,
                           bonds=bonds, min_order=context.min_order, max_clusters=context.max_clusters,
@@ -146,6 +159,21 @@ function _prepare_solver_input(::NLCESolver, model::ManyBodyModel, observable::O
                           allow_periodic_reference=context.allow_periodic_reference)
     return _NLCEProblemSolverInput(problem, request_requirements(observable), context)
 end
+
+function _prepare_solver_input(::NLCESolver, model::ManyBodyModel,
+                               observable::Union{ThermodynamicCurveRequest,MagneticSusceptibilityRequest,MagnetizationCurveRequest},
+                               args::Tuple, kwargs::NamedTuple, context::NLCEForwardContext)
+    isempty(args) && isempty(kwargs) || throw(ArgumentError("NLCE solver arguments belong to NLCEForwardContext"))
+    components = _nlce_forward_model_components(model)
+    bonds = isnothing(context.bonds) ? get(model.parameters, :bonds, nothing) : context.bonds
+    problem = NLCEProblem(components.material, components.reference, components.specification,
+                          _nlce_cluster_evaluator(observable, context); max_order=context.max_order, bonds=bonds,
+                          min_order=context.min_order, max_clusters=context.max_clusters,
+                          model_transform=context.model_transform, model_builder=context.model_builder,
+                          allow_periodic_reference=context.allow_periodic_reference)
+    return _NLCEProblemSolverInput(problem, request_requirements(observable), context)
+end
+
 
 _execute_solver_input(solver::AbstractSolver, input::_DirectSolverInput) = solve(solver, input.model, input.args...; input.kwargs...)
 _execute_solver_input(solver::AbstractSolver, input::_ProblemSolverInput) = solve(solver, input.problem, input.args...; input.kwargs...)
@@ -175,6 +203,15 @@ function _execute_solver_input(solver::NLCESolver, input::_NLCEProblemSolverInpu
         solution.metadata[:cluster_regeneration] = :induced_spin_terms
     end
     solution.metadata[:observable_request] = input.requirements.request_kind
+    solution.metadata[:observable_components] = if input.requirements.request_kind === :thermodynamic_curve
+        (:free_energy, :internal_energy, :entropy, :heat_capacity)
+    elseif input.requirements.request_kind === :magnetic_susceptibility
+        (:susceptibility,)
+    elseif input.requirements.request_kind === :magnetization_curve
+        (:magnetization,)
+    else
+        ()
+    end
     solution.metadata[:inner_solver] = solver_name(input.context.inner_solver)
     solution.metadata[:inner_approximation] = _solver_approximation(input.context.inner_solver)
     solution.metadata[:inner_method_context] = isnothing(input.context.inner_method_context) ? :none : Symbol(nameof(typeof(input.context.inner_method_context)))

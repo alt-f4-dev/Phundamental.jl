@@ -70,6 +70,11 @@ struct _PhononDispersionInput{M,Q}
     qpath::Q
 end
 
+struct _SpinWaveDispersionInput{M,Q}
+    model::M
+    qpoints::Q
+end
+
 struct _NLCEProblemSolverInput{P,R,C}
     problem::P
     requirements::R
@@ -93,6 +98,17 @@ function _prepare_solver_input(::HarmonicPhononSolver, model::ManyBodyModel, obs
     isempty(kwargs) || throw(ArgumentError("HarmonicPhononSolver is configured by the solver object; solver_kwargs must be empty for PhononStructureFactorRequest"))
     qpath = Observables._phonon_structure_solver_wavevectors(observable, model)
     return _PhononDispersionInput(model, qpath)
+end
+
+function _prepare_solver_input(::SpinWaveSolver, model::ManyBodyModel, observable::Observables.SpinTensorStructureFactorRequest,
+                               args::Tuple, kwargs::NamedTuple, ::Nothing)
+    scope = get(observable.metadata, :spinwave_momentum_scope, :finite_cell_form_factor)
+    scope in (:finite_cell_form_factor, :magnetic_supercell_bloch) || throw(ArgumentError("unrecognized spin-wave momentum scope $scope"))
+    if scope === :magnetic_supercell_bloch
+        isempty(args) && isempty(kwargs) || throw(ArgumentError("Bloch spin-wave requests determine qpoints; solver_args and solver_kwargs must be empty"))
+        return _SpinWaveDispersionInput(model, observable.qgrid)
+    end
+    return _DirectSolverInput(model, args, kwargs)
 end
 
 function _prepare_solver_input(::DMFTSolver, model::ManyBodyModel, ::Observables.AbstractObservable, args::Tuple, kwargs::NamedTuple,
@@ -178,6 +194,7 @@ end
 _execute_solver_input(solver::AbstractSolver, input::_DirectSolverInput) = solve(solver, input.model, input.args...; input.kwargs...)
 _execute_solver_input(solver::AbstractSolver, input::_ProblemSolverInput) = solve(solver, input.problem, input.args...; input.kwargs...)
 _execute_solver_input(solver::HarmonicPhononSolver, input::_PhononDispersionInput) = phonon_dispersion(solver, input.model, input.qpath)
+_execute_solver_input(solver::SpinWaveSolver, input::_SpinWaveDispersionInput) = spinwave_dispersion(solver, input.model, input.qpoints)
 
 function _execute_solver_input(solver::DMFTSolver, input::_ProblemSolverInput{P}) where {P<:DMFTProblem}
     result = solve(solver, input.problem, input.args...; input.kwargs...)

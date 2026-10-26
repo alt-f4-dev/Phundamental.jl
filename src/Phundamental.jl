@@ -453,6 +453,14 @@ export AbstractSolver,
        orthogonal_boson_subspace,
        HarmonicPhononSolver,
        LinearSpinWaveSolver,
+       MagneticReferenceState,
+       SUNReferenceState,
+       SpinWaveSolver,
+       sun_operator_matrix_elements,
+       sun_mode_matrix_elements,
+       SpinWaveDispersionResult,
+       spinwave_dispersion,
+       optimize_spin_reference,
        AbstractModeResult,
        QuadraticModeResult,
        PhononModeResult,
@@ -531,6 +539,9 @@ include("observables/requests/ForwardRequests.jl")
 include("observables/requests/SpecializedRequests.jl")
 include("observables/requests/RequestRequirements.jl")
 include("observables/scattering/SpinWaveStructureFactor.jl")
+include("observables/scattering/NoncollinearSpinWaveStructureFactor.jl")
+include("observables/scattering/SUNSpinWaveStructureFactor.jl")
+include("observables/scattering/BlochSpinWaveStructureFactor.jl")
 include("observables/scattering/StaticStructureFactor.jl")
 include("observables/spectra/SpectralFunctions.jl")
 include("observables/scattering/Scattering.jl")
@@ -681,6 +692,7 @@ include("models/Materials/MixedMaterials.jl")
 # Hamiltonian specifications and constructors
 include("models/Hamiltonians/HamiltonianTypes.jl")
 include("models/Hamiltonians/SpinModels.jl")
+include("models/Hamiltonians/TensorSpinModels.jl")
 include("models/Hamiltonians/FermionModels.jl")
 include("models/Hamiltonians/ImpurityModels.jl")
 include("models/Hamiltonians/PhononModels.jl")
@@ -800,6 +812,7 @@ export AbstractHamiltonianSpec,
        model_cluster,
        mode_index,
        HeisenbergModel,
+       TensorSpinModel,
        XXZModel,
        HubbardModel,
        AndersonImpurityModel,
@@ -1457,6 +1470,7 @@ using .Models: BravaisLattice,
                AbstractHamiltonianSpec,
                build_model,
                HeisenbergModel,
+       TensorSpinModel,
                XXZModel,
                HubbardModel,
                AndersonImpurityModel,
@@ -2105,6 +2119,14 @@ export AbstractSolver,
        orthogonal_boson_subspace,
        HarmonicPhononSolver,
        LinearSpinWaveSolver,
+       MagneticReferenceState,
+       SUNReferenceState,
+       SpinWaveSolver,
+       sun_operator_matrix_elements,
+       sun_mode_matrix_elements,
+       SpinWaveDispersionResult,
+       spinwave_dispersion,
+       optimize_spin_reference,
        AbstractModeResult,
        QuadraticModeResult,
        PhononModeResult,
@@ -2289,6 +2311,7 @@ export BravaisLattice,
        AbstractHamiltonianSpec,
        build_model,
        HeisenbergModel,
+       TensorSpinModel,
        XXZModel,
        HubbardModel,
        AndersonImpurityModel,

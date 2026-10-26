@@ -35,6 +35,13 @@ include("Quadratic/NormalModes.jl")
 include("Phonons/DynamicalMatrix.jl")
 include("Phonons/PhononModes.jl")
 
+include("SpinWave/SUNCoherentStates.jl")
+include("SpinWave/MagneticReferences.jl")
+include("SpinWave/InteractionExtraction.jl")
+include("SpinWave/LocalFrameExpansion.jl")
+include("SpinWave/SUNSpinWave.jl")
+include("SpinWave/MomentumSpinWave.jl")
+include("SpinWave/ReferenceOptimization.jl")
 include("SpinWave/LinearSpinWave.jl")
 include("SpinWave/SpinWaveSpectrum.jl")
 

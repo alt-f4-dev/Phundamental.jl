@@ -25,6 +25,7 @@ SolverCompatibility(solver::Symbol, model_supported::Bool, request_supported::Bo
 
 _solver_approximation(solver::AbstractSolver) = solver_approximation(solver)
 _solver_approximation(::LinearSpinWaveSolver) = :linear_spin_wave
+_solver_approximation(::SpinWaveSolver) = :linear_spin_wave
 _solver_approximation(::DMFTSolver) = :single_site_dmft
 _solver_approximation(::DiagrammaticDMFTSolver) = :one_shot_ladder_dga
 _solver_approximation(::NLCESolver) = :finite_order_nlce

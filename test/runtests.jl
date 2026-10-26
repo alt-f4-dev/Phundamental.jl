@@ -58,3 +58,9 @@ include("greens/impurity-four-point-validation.jl")
 include("embedding/ladder-dga-end-to-end-validation.jl")
 
 include("phase-i-closure-validation.jl")
+
+include("noncollinear-spin-wave-validation.jl")
+include("single-ion-spinwave-validation.jl")
+include("sun-spin-wave-validation.jl")
+
+include("bloch-reference-optimization-validation.jl")

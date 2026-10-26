@@ -147,6 +147,23 @@ function _solver_model_support(solver::LinearSpinWaveSolver, model::ManyBodyMode
     return true, (), true
 end
 
+function _solver_model_support(solver::SpinWaveSolver, model::ManyBodyModel)
+    try
+        data = Solvers._spinwave_extract_interactions(model; tol=solver.tol)
+        if solver.formalism === :SUN
+            setup = Solvers._sun_quadratic_data(data, Solvers._sun_resolved_reference(solver.reference, data.spins); tol=solver.tol, stationarity_tol=solver.stationarity_tol)
+            A, B = Solvers._sun_interaction_blocks(data, setup)
+            H = [A B; adjoint(B) transpose(A)]
+            minimum(eigvals(Hermitian(H))) >= -solver.tol * max(Solvers.opnorm(H), 1.0) || throw(ArgumentError("SU(N) reference has a negative quadratic energy direction"))
+        else
+            Solvers._spinwave_local_blocks(data, solver.reference; tol=solver.tol, stationarity_tol=solver.stationarity_tol)
+        end
+        return true, (), true
+    catch error
+        return false, (sprint(showerror, error),), true
+    end
+end
+
 function _hubbard_forward_model_support(model::ManyBodyModel)
     try
         _single_band_hubbard_forward_parameters(model)
@@ -215,6 +232,7 @@ _solver_output_family(::QuadraticFermionSolver, ::ManyBodyModel) = :quadratic_fe
 _solver_output_family(::QuadraticBosonSolver, ::ManyBodyModel) = :quadratic_boson_mode
 _solver_output_family(::HarmonicPhononSolver, ::ManyBodyModel) = :phonon_mode
 _solver_output_family(::LinearSpinWaveSolver, ::ManyBodyModel) = :spin_wave
+_solver_output_family(::SpinWaveSolver, ::ManyBodyModel) = :spin_wave
 _solver_output_family(::DMFTSolver, ::ManyBodyModel) = :dmft
 _solver_output_family(::DiagrammaticDMFTSolver, ::ManyBodyModel) = :ladder_dga
 _solver_output_family(::NLCESolver, ::ManyBodyModel) = :nlce

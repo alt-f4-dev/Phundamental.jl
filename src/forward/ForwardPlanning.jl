@@ -11,6 +11,7 @@ const _DEFAULT_FORWARD_SOLVER_PREFERENCE = (
     :lanczos,
     :auto_solver,
     :linear_spin_wave,
+    :spin_wave,
     :single_site_dmft,
     :ladder_dga,
     :nlce,
